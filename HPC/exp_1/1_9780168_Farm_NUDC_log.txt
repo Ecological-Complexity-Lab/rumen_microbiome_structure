@@ -1,0 +1,12 @@
+START EVENT LOG: EXPERIMENT 1
+Data file:  ASV_Core_final_03.csv
+========= FARM LEVEL:  NUDC   =========
+--- ASV_occurrence_mat_cow ---
+490
+243
+0.571966070378769
+Are all ASVs in the matrix? TRUE
+Are all cows in the matrix? TRUE
+Do all the ASVs appear? TRUE
+Parsing networks
+Writing files

@@ -1,0 +1,12 @@
+START EVENT LOG: EXPERIMENT 8
+Data file:  core_ASV_30.csv
+========= REGION LEVEL =========
+--- ASV_occurrence_mat_cow ---
+936
+973
+0.28734594741789
+Are all ASVs in the matrix? TRUE
+Are all cows in the matrix? TRUE
+Do all the ASVs appear? TRUE
+Parsing networks
+Writing files
