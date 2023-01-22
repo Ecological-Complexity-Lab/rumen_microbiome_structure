@@ -1,0 +1,285 @@
+---
+title: "Patterns of occurrence"
+subtitle: "Supplementary Infomation for the paper: "
+author:
+  - Dr. Shai Pilosof, Ecological Complexity Lab [www.bgu.ac.il/ecomplab](www.bgu.ac.il/ecomplab), Ben Gurion University, Israel
+date: 2022-03
+output:
+  html_document: 
+    fig_height: 4
+    fig_width: 6
+    theme: united
+    code_folding: hide
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      number_sections: true
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "show", message=FALSE, warning=FALSE, cache=TRUE, eval = TRUE, out.width = '100%', out.height='40%')
+knitr:::read_chunk('exploratory_analysis.r') # A .R file from which code can be sourced.
+
+output_folder <- "~/Dropbox/Apps/Overleaf/Rumen microbiome coocurrence/latest/"
+```
+
+```{r}
+setwd('/Users/Geut/Documents/git_root/microbiome_structure_v2/fixed_data')
+<<include>>
+```
+
+
+# About
+This file contains the code and resulting plots that describe the patterns of ASV richness and occurrence in farms.
+
+# ASV Richness and diversity
+
+```{r}
+<<ASV_analysis>>
+```
+
+## Fig. S1a: Richness per cow
+```{r fig.cap = "A histogram showing the number of ASVs per cow (across farms)."}
+plt_richness_per_cow
+
+## Make a file
+#pdf(paste(output_folder, 'SI_richness_per_cow.pdf', sep = ""), 10, 6)
+#plt_richness_per_cow
+#dev.off()
+```
+
+## Fig. S1b: Richness per farm
+```{r fig.cap = "Bar plots of the number of ASVs per farm (across cows)."}
+plt_richness_per_farm
+
+# # Make a file
+# pdf('local_output/figures/SI_richness_per_farm.pdf', 10, 6)
+# plt_richness_per_farm
+# dev.off()
+
+
+# Make a file
+pdf(paste(output_folder, 'SI_ASV_richness.pdf', sep = ""), 10, 6)
+plot_grid(plt_richness_per_cow,plt_richness_per_farm, ncol=2, rel_widths = c(0.5,0.5), labels = c('(A)','(B)'))
+dev.off()
+
+```
+
+## Fig. S2: Richness per cow within farms
+```{r fig.cap = "Box plots of the distribution of number of ASVs in cows, within each farm. Colors depict countries."}
+plt_richness_per_cow_farm
+
+# Make a file
+pdf(paste(output_folder, 'SI_richness_per_cow_farm.pdf', sep = ""), 10, 6)
+plt_richness_per_cow_farm
+dev.off()
+```
+
+
+# Fig. S3: Taxonony
+
+```{r}
+ASV_taxa <-
+  read_csv('local_output/ASV_full_taxa.csv') %>% select(ASV_ID, everything(), -seq16S)
+
+phylum_in_farms <- 
+ASV_Core_30 %>%
+  left_join(ASV_taxa) %>%
+  group_by(Farm, Phylum) %>% 
+  summarise(ASV_num=n_distinct(ASV_ID)) %>% 
+  mutate(relative_richness=ASV_num/sum(ASV_num)) %>% 
+  mutate(ypos = cumsum(relative_richness)- 0.5*relative_richness) %>% 
+  ggplot(aes(x="", y=relative_richness, fill=Phylum))+
+  facet_wrap(~Farm)+
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+
+  paper_figs_theme+
+  theme(axis.text = element_blank(),
+        axis.title = element_blank())
+
+phylum_in_farms
+
+# Make a file
+pdf(paste(output_folder, 'SI_phylum_in_farms.pdf', sep = ""), 10, 6)
+phylum_in_farms
+dev.off()
+
+```
+
+
+## Fig. S4: ASV Beta diversity between farms
+```{r}
+<<betadiv>>
+```
+
+Using Jaccard (A) and UniFrac (B)
+```{r}
+plt_beta_div
+
+# Make a file
+pdf(paste(output_folder, 'SI_betadiv.pdf', sep = ""), 10, 6)
+plt_beta_div
+dev.off()
+```
+
+
+# Multilayer network and modularity
+
+## Fig. S5: Distribution of link weights
+
+```{r}
+multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
+
+link_weight_distributions <- 
+ggplot(multilayer_unif, aes(weight, fill=type))+
+  geom_density(alpha=0.5)+
+  labs(x='Edge weight', y='Density')+
+  scale_fill_manual(values = c('blue','orange'))+
+ html_figs_theme
+
+link_weight_distributions
+
+# Make a file
+pdf(paste(output_folder, 'SI_link_weight_distributions.pdf', sep = ""), 10, 6)
+link_weight_distributions
+dev.off()
+```
+
+```{r message=FALSE, warning=FALSE}
+# Read from files if already run
+modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
+mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))[5,]
+num_modules_obs <- mod_summary_obs$top_modules
+L_obs <- mod_summary_obs$L
+
+module_rel_size <- 
+modules_obs %>%
+  mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+  group_by(short_name) %>%
+  mutate(nodes_in_layers=n_distinct(node_id)) %>%
+  group_by(short_name,level1) %>%
+  mutate(nodes_in_modules=n_distinct(node_id)) %>%
+  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+  distinct(short_name, level1, nodes_percent) %>% 
+  arrange(level1, short_name)
+```
+
+We first observe that there are modules in farms that contain a negligible proportion of all the ndoes in the farms. For instance, in FI1 there are three modules, two of which hold less than 3% of the microbes. Because these modules introduce noise we only include modules that contain 3% or more of the microbes in the farm.
+
+## Fig. S6: Top-modules
+```{r}
+all_modules <- 
+module_rel_size %>%
+  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
+  geom_tile(color='white')+
+  scale_x_continuous(breaks = seq(1, max(modules_obs$level1), 1))+
+  scale_fill_viridis_c(limits = c(0, 1))+
+  labs(x='Module ID', title='No threshold')+
+  html_figs_theme_no_legend
+
+filtered_modules <- 
+module_rel_size %>%
+  filter(nodes_percent>=0.03) %>%
+  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
+  geom_tile(color='white')+
+  scale_x_continuous(breaks = seq(1, max(modules_obs$level1), 1))+
+  scale_fill_viridis_c(limits = c(0, 1))+
+  labs(x='Module ID', y='', title='With threshold')+
+  html_figs_theme
+
+top_modules <- plot_grid(all_modules, filtered_modules, rel_widths = c(0.4,0.6), labels = c('(A)','(B)'))
+
+top_modules
+
+
+pdf(paste(output_folder, 'SI_modules_heir.pdf', sep = ""), 10, 6)
+top_modules
+dev.off()
+```
+
+## Fig. S6b: Sub-modules of top-module 1
+
+The network has modules within modules whereby module number 1, which contains the farms in UK and IT is partitioned to sub-modules. Here, the first top-module is divided into a sub-module #1 that contains the Italian farms, a sub-module #2 that contains UK1 and sub-modules #3,4 to which UK2 belong.
+
+```{r}
+# sub_modules <- 
+# modules_obs %>%
+#   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+#   # Filter out small modules as in the non-multilevel analysis.
+#   group_by(short_name) %>%
+#   mutate(nodes_in_layers=n_distinct(node_id)) %>%
+#   group_by(short_name,level1) %>%
+#   mutate(nodes_in_modules=n_distinct(node_id)) %>%
+#   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+#   filter(nodes_percent>=0.03) %>%
+#   # Now focus on the main module
+#   filter(level1==1) %>%
+#   # Recalculate the proportion of ASVs as: the number of ASVs in a sub-module in
+#   # a layer divided by the total number of ASVs included in the top module
+#   group_by(short_name) %>%
+#   mutate(nodes_in_layers=n_distinct(node_id)) %>%
+#   group_by(short_name,level2) %>%
+#   mutate(nodes_in_modules=n_distinct(node_id)) %>%
+#   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+#   distinct(short_name, level2, nodes_percent) %>% 
+#   arrange(level2, short_name) %>% 
+#   filter(nodes_percent>=0.03) %>%
+#   ggplot(aes(x = level2, y = short_name, fill=nodes_percent))+
+#     geom_tile(color='white')+
+#     scale_x_continuous(breaks = seq(1, max(modules_obs$level2), 1))+
+#     scale_fill_viridis_c(limits = c(0, 1))+
+#     labs(x='Module ID', y='', title='sub-modules')+
+#     paper_figs_theme
+#   
+#   sub_modules
+# 
+# modules_heir <- plot_grid(all_modules, filtered_modules+paper_figs_theme_no_legend, sub_modules, nrow = 2, ncol=2, rel_widths = c(0.5,0.5), labels = c('(A)','(B)','(C)'))
+# 
+# modules_heir
+# 
+# # Make a file
+# pdf('local_output/figures/SI_modules_heir.pdf', 10, 6)
+# modules_heir
+# dev.off()
+```
+
+# Comparison to shuffled networks
+
+
+### Fig. S7a
+
+The observed L value is smaller than that of all of the networks, resulting in a significant (P<0.002) differnece from random.
+
+```{r}
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500"
+summ <- read_csv(paste(parent.folder,'/farm_modulation_summary_pf_unif.csv',sep=''), col_names = c('e_id','JOB','call','L','num_modules'))
+summ %<>% slice(tail(row_number(), 1000)) %>% filter(!str_detect(call, '-2'))
+
+L_obs_shuff <- 
+ggplot(summ, aes(L))+
+  geom_histogram()+
+  geom_vline(xintercept = L_obs, linetype='dashed')
+
+L_obs_shuff+html_figs_theme_no_legend
+```
+
+### Fig. S7b
+
+In addition, the shuffled networks had only a single level and, except from a few instances, had a single module to which all farms belonged.
+
+```{r}
+num_modules_obs_shuff <- 
+ggplot(summ, aes(num_modules))+
+  geom_histogram()+
+  geom_vline(xintercept = num_modules_obs, linetype='dashed')+
+  labs(x='Number of modules')
+num_modules_obs_shuff+html_figs_theme_no_legend
+
+
+# Make a file
+pdf(paste(output_folder, 'SI_modularity_obs_shuff.pdf', sep = ""), 10, 6)
+plot_grid(L_obs_shuff+paper_figs_theme_no_legend, num_modules_obs_shuff+paper_figs_theme_no_legend, ncol=2, rel_widths = c(0.5,0.5), labels = c('(A)','(B)'))
+dev.off()
+```
