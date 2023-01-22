@@ -63,12 +63,10 @@ if (!is_shuff) {
 
 # Find significant pairwise co-occurrences.
 ASV_co <- cooccur(ASV_occurrence_mat_cow, spp_names = TRUE)
-#ez <- effect.sizes(mod=ASV_co, standardized = TRUE)
-
 ASV_co <- ASV_co$results
+
 # add jaccard values, and using them as weight:
 ASV_co %<>% mutate(weight=obs_cooccur/(sp1_inc+sp2_inc-obs_cooccur))
-#ASV_co <- left_join(ASV_co, ez, by=c("sp1_name" = "sp1", "sp2_name" = "sp2"))
 
 # Do all the ASVs appear?
 x <- sort(unique(ASV_cow$ASV_ID))
