@@ -27,7 +27,7 @@ layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand
 
 # Create a multilayer network for 7 farms with intralayer edges ----
 farm_multilayer <- NULL
-lyrs_list <- layers$short_name
+lyrs_list <- NULL
 if (e_id>4) { # this is compatible with short farm name (the new ones)
   lyrs_list <- layers$short_name
 } else{ # this is compatible with full farm name (the old ones)
@@ -67,4 +67,3 @@ setwd('../../')
 
 # save the positive edges
 write_csv(farm_multilayer, 'local_output/farm_multilayer_pos_30.csv')
-

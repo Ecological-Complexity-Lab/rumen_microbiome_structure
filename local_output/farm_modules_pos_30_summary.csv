@@ -3,3 +3,5 @@ multilayer_unif,./Infomap infomap_multilayer.txt .  --tree -N 2 -f undirected,9.
 multilayer_unif,./Infomap infomap_multilayer.txt .  --tree -N 200 -f undirected,8.95841,10,2022-07-12T09:50:16Z
 multilayer_unif,./Infomap infomap_multilayer.txt .  --tree -N 200 -f undirected,8.95841,10,2022-07-12T09:51:41Z
 multilayer_unif,./Infomap infomap_multilayer.txt .  --tree -N 200 -f undirected,8.95841,10,2022-07-13T08:39:59Z
+multilayer_unif,./Infomap infomap_multilayer.txt . --tree -2 -N 200 --seed 123 -f undirected,8.933,10,2023-01-23T12:08:07Z
+multilayer_unif,./Infomap infomap_multilayer.txt . --tree -2 -N 200 --seed 123 -f undirected,8.933,10,2023-01-23T14:33:05Z
