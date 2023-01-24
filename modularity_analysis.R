@@ -224,7 +224,10 @@ write_csv(modules_obs, 'local_output/farm_modules_pos_30_U.csv')
 
 # Read from files if already run
 modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
-mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))
+mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', 
+                            col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))
+# get the latest run
+mod_summary_obs <- mod_summary_obs[which.max(mod_summary_obs$time_stamp),] 
 num_modules_obs <- mod_summary_obs$top_modules
 L_obs <- mod_summary_obs$L
 
@@ -238,6 +241,7 @@ m <- run_infomap_multilayer_multilevel(multilayer_for_infomap, two_level = F,
 
 # if i want to run multilevel analysis ^^^^
 # level 2 - module 1
+
 modules_obs %>%
   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(short_name) %>%
@@ -293,7 +297,8 @@ paper_figs_theme
 #   labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
 #   paper_figs_theme
 # dev.off()
-## Module sharing for observed network -------------------------------------
+
+## Module sharing in multilevel for observed network ---
 
 # Level 1 (top modules) module sharing
 module_farm <- 
@@ -349,6 +354,8 @@ module_sharing_obs <- crossprod(1*(module_farm>0))
 #g
 #E(g)$weight
 #plot(g, edge.width=E(g)$weight*5, edge.label=E(g)$weight)
+
+
 
 ## Analyze observed modularity results -------------------------------
 # Distribution of module sizes
@@ -420,63 +427,94 @@ dev.off()
 
 #plot_grid(plt_richness_per_cow, plt_richness_per_farm, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
 
-## Module sharing for observed network -------------------------------------
+# Compared to shuffled networks -------------------------------------------
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
-# Level 1 (top modules) module sharing
-module_farm <- 
-modules_obs %>%
-  mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  group_by(short_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level1, nodes_percent) %>% 
-  arrange(level1, short_name) %>% 
-  # Only include modules that contain at least 3% of the ASVs in the layer
-  filter(nodes_percent>=0.03) %>% 
-  spread(short_name, nodes_percent, fill=0) %>% 
-  ungroup() %>% 
-  select(-level1) %>% as.matrix()
+# General stats
+summ <- read_csv(paste(parent.folder,'/farm_modulation_summary_pf_unif.csv',sep=''), col_names = c('e_id','JOB','call','L','num_modules'))
+summ %<>% slice(tail(row_number(), 1000)) %>% filter(!str_detect(call, '-2'))
+ggplot(summ, aes(L))+
+  geom_histogram()+
+  geom_vline(xintercept = L_obs)
+(pvalue <- sum(summ$L<L_obs)/500)
 
-module_sharing_obs <- crossprod(1*(module_farm>0))
+ggplot(summ, aes(num_modules))+
+  geom_histogram()+
+  geom_vline(xintercept = num_modules_obs)
 
-# Level 2 module sharing
-# module_farm <- 
-# modules_obs %>%
-#   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-#   # Filter out small modules as in the non-multilevel analysis.
-#   group_by(short_name) %>%
-#   mutate(nodes_in_layers=n_distinct(node_id)) %>%
-#   group_by(short_name,level1) %>%
-#   mutate(nodes_in_modules=n_distinct(node_id)) %>%
-#   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-#   filter(nodes_percent>=0.03) %>%
-#   # Now focus on the main module
-#   filter(level1==1) %>%
-#   # Recalculate the proportion of ASVs as: the number of ASVs in a sub-module in
-#   # a layer divided by the total number of ASVs included in the top module
-#   group_by(short_name) %>%
-#   mutate(nodes_in_layers=n_distinct(node_id)) %>%
-#   group_by(short_name,level2) %>%
-#   mutate(nodes_in_modules=n_distinct(node_id)) %>%
-#   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-#   distinct(short_name, level2, nodes_percent) %>% 
-#   arrange(level2, short_name) %>% 
-#   filter(nodes_percent>=0.03) %>% 
-#   spread(short_name, nodes_percent, fill=0) %>% 
-#   ungroup() %>% 
-#   select(-level2) %>% as.matrix()
-# 
-# mod_sharing_level2 <- crossprod(1*(module_farm>0))
-# 
-# module_sharing_obs[rownames(mod_sharing_level2),colnames(mod_sharing_level2)] <- mod_sharing_level2
-# diag(module_sharing_obs) <- 0
-g <- graph.adjacency(module_sharing_obs, mode = 'undirected', diag = T, weighted = T)
-g
-E(g)$weight
-plot(g, edge.width=E(g)$weight*5, edge.label=E(g)$weight)
+# percent of shuffled networks with 1 big module:
+100*sum(summ$num_modules == 1)/nrow(summ)
 
+## Read shuffled files -------------------------------
+
+# Folder containing sub-folders
+# Sub-folders
+sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
+
+# read all 
+modules_shuffled <- NULL
+for (s in sub.folders) {
+  print(s)
+  modules_run <- list.files(path = s , pattern = '_farm_modules_pf_unif.csv', recursive = T,full.names = T)
+  modules_run <- fread(modules_run)
+  modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
+  modules_shuffled <- rbind(modules_shuffled,modules_run)
+}
+modules_shuffled <- as_tibble(modules_shuffled)
+
+
+## Comparing multi-level modularity to shuffled ----------------------------
+
+# read all multi-level results
+modules_shuffled <- NULL
+for (s in sub.folders) {
+  print(s)
+  modules_run <- list.files(path = s , pattern = 'farm_modules_pos_30_U_multilevel', recursive = T,full.names = T)
+  modules_run <- fread(modules_run)
+  modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
+  modules_shuffled <- rbind(modules_shuffled,modules_run)
+}
+modules_shuffled <- as_tibble(modules_shuffled)
+
+module_sharing_shuffled <- array(NA, dim = c(7,7,500), dimnames = list(c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'),
+                                                                    c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'),
+                                                                    unique(modules_shuffled$id)))
+# How many times each farm was found to be isolated?
+for (i in unique(modules_shuffled$id)){
+  print(i)
+  farm_mod <-
+    modules_shuffled %>%
+    filter(i==id) %>% 
+    mutate(layer_name=factor(layer_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+    group_by(id,layer_name) %>%
+    mutate(nodes_in_layers=n_distinct(node_id)) %>%
+    group_by(id, layer_name, level1) %>%
+    mutate(nodes_in_modules=n_distinct(node_id)) %>%
+    mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+    distinct(id, layer_name, level1, nodes_percent) %>% 
+    arrange(level1, layer_name) %>% 
+    # Only include modules that contain at least 3% of the ASVs in the layer
+    filter(nodes_percent>=0.03) %>% 
+    spread(layer_name, nodes_percent, fill=0) %>% 
+    ungroup() %>% 
+    select(-level1, -id) %>% as.matrix()
+  
+  shared <- crossprod(1*(farm_mod>0))
+  diag(shared) <- 0
+  module_sharing_shuffled[rownames(shared),colnames(shared),i] <- shared
+}
+
+diag(module_sharing_obs) <- 0
+as_tibble(reshape2::melt(apply(module_sharing_shuffled, 3, rowSums), varnames = c('Farm','num_farms_in_module'))) %>% 
+  # group_by(Var1) %>% summarise(shared_mean=mean(value),
+                               # shared_sd=sd(value))
+  ggplot(aes(x=Farm, y=value))+
+  geom_boxplot()+
+  geom_point(data = tibble(Farm=rownames(module_sharing_obs), value=rowSums(module_sharing_obs)), aes(x=Farm, y=value), size=4, 
+             color='blue')+
+  labs(y='Number of modules shared')+
+  paper_figs_theme_no_legend
+  
 
 # Flow dynamics -----------------------------------------------------------
 modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
@@ -646,84 +684,6 @@ z_score %>%
   group_by(signif) %>% 
   summarise(n=n(),prop=n/nrow(z_score))
 
-
-
-
-# Compared to shuffled networks -------------------------------------------
-parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500"
-
-# General stats
-summ <- read_csv(paste(parent.folder,'/farm_modulation_summary_pf_unif.csv',sep=''), col_names = c('e_id','JOB','call','L','num_modules'))
-summ %<>% slice(tail(row_number(), 1000)) %>% filter(!str_detect(call, '-2'))
-ggplot(summ, aes(L))+
-  geom_histogram()+
-  geom_vline(xintercept = L_obs)
-(pvalue <- sum(summ$L<L_obs)/500)
-
-ggplot(summ, aes(num_modules))+
-  geom_histogram()+
-  geom_vline(xintercept = num_modules_obs)
-
-# percent of shuffled networks with 1 big module:
-100*sum(summ$num_modules == 1)/nrow(summ)
-
-## Read files -------------------------------
-
-# Folder containing sub-folders
-# Sub-folders
-sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
-
-# read all 
-modules_shuffled <- NULL
-for (s in sub.folders) {
-  print(s)
-  modules_run <- list.files(path = s , pattern = 'farm_modules_pos_30_U_multilevel', recursive = T,full.names = T)
-  modules_run <- fread(modules_run)
-  modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
-  modules_shuffled <- rbind(modules_shuffled,modules_run)
-}
-modules_shuffled <- as_tibble(modules_shuffled)
-
-
-module_sharing_shuffled <- array(NA, dim = c(7,7,500), dimnames = list(c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'),
-                                                                    c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'),
-                                                                    unique(modules_shuffled$id)))
-# How many times each farm was found to be isolated?
-for (i in unique(modules_shuffled$id)){
-  print(i)
-  farm_mod <-
-    modules_shuffled %>%
-    filter(i==id) %>% 
-    mutate(layer_name=factor(layer_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-    group_by(id,layer_name) %>%
-    mutate(nodes_in_layers=n_distinct(node_id)) %>%
-    group_by(id, layer_name, level1) %>%
-    mutate(nodes_in_modules=n_distinct(node_id)) %>%
-    mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-    distinct(id, layer_name, level1, nodes_percent) %>% 
-    arrange(level1, layer_name) %>% 
-    # Only include modules that contain at least 3% of the ASVs in the layer
-    filter(nodes_percent>=0.03) %>% 
-    spread(layer_name, nodes_percent, fill=0) %>% 
-    ungroup() %>% 
-    select(-level1, -id) %>% as.matrix()
-  
-  shared <- crossprod(1*(farm_mod>0))
-  diag(shared) <- 0
-  module_sharing_shuffled[rownames(shared),colnames(shared),i] <- shared
-}
-
-diag(module_sharing_obs) <- 0
-as_tibble(reshape2::melt(apply(module_sharing_shuffled, 3, rowSums), varnames = c('Farm','num_farms_in_module'))) %>% 
-  # group_by(Var1) %>% summarise(shared_mean=mean(value),
-                               # shared_sd=sd(value))
-  ggplot(aes(x=Farm, y=value))+
-  geom_boxplot()+
-  geom_point(data = tibble(Farm=rownames(module_sharing_obs), value=rowSums(module_sharing_obs)), aes(x=Farm, y=value), size=4, 
-             color='blue')+
-  labs(y='Number of modules shared')+
-  paper_figs_theme_no_legend
-  
 
 # Compared to the regional network ----------------------------------------
 
