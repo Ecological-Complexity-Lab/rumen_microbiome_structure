@@ -1,0 +1,12 @@
+START EVENT LOG: EXPERIMENT 386
+Data file:  shuff_farm_386.csv
+========= FARM LEVEL:  UK1   =========
+--- ASV_occurrence_mat_cow ---
+490
+243
+0.571966070378769
+Are all ASVs in the matrix? TRUE
+Are all cows in the matrix? TRUE
+Do all the ASVs appear? TRUE
+Parsing networks
+Writing files
