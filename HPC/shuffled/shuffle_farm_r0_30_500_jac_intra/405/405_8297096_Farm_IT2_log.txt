@@ -1,0 +1,12 @@
+START EVENT LOG: EXPERIMENT 405
+Data file:  shuff_farm_405.csv
+========= FARM LEVEL:  IT2   =========
+--- ASV_occurrence_mat_cow ---
+566
+176
+0.617591551557983
+Are all ASVs in the matrix? TRUE
+Are all cows in the matrix? TRUE
+Do all the ASVs appear? TRUE
+Parsing networks
+Writing files
