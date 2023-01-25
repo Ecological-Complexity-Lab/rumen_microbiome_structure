@@ -1,0 +1,12 @@
+START EVENT LOG: EXPERIMENT 19
+Data file:  core_ASV_fixed_05.csv
+========= FARM LEVEL:  UK2   =========
+--- ASV_occurrence_mat_cow ---
+1820
+164
+0.289597292950951
+Are all ASVs in the matrix? TRUE
+Are all cows in the matrix? TRUE
+Do all the ASVs appear? TRUE
+Parsing networks
+Writing files
