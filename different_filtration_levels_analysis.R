@@ -12,8 +12,9 @@ check_infomap()
 source('functions.R')
 # Load data --------------------------------
 # change the number of the file to the wanted filtration level
-ASV_Core <- read_csv('local_output/core_ASV_20.csv') %>% 
+ASV_Core <- read_csv('local_output/core_ASV_fixed_20.csv') %>% 
   mutate(Farm=factor(Farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1')))
+e_id <- 17
 
 ## @knitr END
 # Supplementary
@@ -126,9 +127,7 @@ plt_U <-
 
 ## @knitr betadiv
 
-
-
-# Taxonomic analysis ------------------
+#5 Taxonomic analysis ------------------
 ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>% 
   select(ASV_ID, everything(), -seq16S)
 n_distinct(ASV_Core$ASV_ID)
@@ -151,23 +150,47 @@ ASV_Core %>%
   theme(axis.text = element_blank(),
         axis.title = element_blank())
 
-#------ network creation -------------------------------
+#6 Number of cows in which microbes occur -----------
+ASV_Core %>%
+  group_by(ASV_ID) %>%
+  summarise(habitats=n_distinct(Cow_Code)) %>%
+  ggplot(aes(habitats))+
+  geom_histogram(fill='brown', color='white')+
+  labs(x='Number of cows', y='Count')+
+  html_figs_theme_no_legend
 
-# Co-occurrence networks at farm level are generated
-# on the HPC using the core microbe data set created above.
+#7 Number of farms in which microbes occur -----------
+ASV_Core %>%
+  group_by(ASV_ID) %>%
+  summarise(habitats=n_distinct(Farm)) %>%
+  arrange(desc(habitats)) %>% 
+  group_by(habitats) %>% 
+  summarise(n=n_distinct(ASV_ID)) %>% 
+  ggplot(aes(habitats, n))+
+  geom_col(fill='dark green')+
+  labs(x='Number of farms', y='Count')+
+  scale_x_continuous(breaks = seq(0,7,1))+
+  paper_figs_theme_no_legend
 
-#------ run --------------------------------
-# Co-occurrence network for farm scale change the number of the e_id to the wanted experiment----
-e_id <- 13 
-run_summary <- read_csv('HPC/run_summary_sup.csv', 
+
+dev.off() # close the handle that collects all the network exploratory analysis
+
+
+#------ Modularity per filtration level ()-------------------------------
+ASV_Core <- read_csv('local_output/core_ASV_fixed_05.csv') %>% 
+  mutate(Farm=factor(Farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1')))
+e_id <- 19 #change the number of the e_id to the wanted experiment
+percent_str <- "05"
+
+run_summary <- read_csv('HPC/run_summary.csv', 
                         col_names = c('exp_id','level','level_name','JOB_ID','data_file','time_stamp')) %>%
-  arrange(exp_id,level)
+                arrange(exp_id,level)
 run_summary %>% filter(exp_id==e_id)
 layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand','Mink','Raab'),
                  short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
 
+## run infomap--------------------------------
 # Create a multilayer network for 7 farms with intralayer edges ----
-
 farm_multilayer <- NULL
 setwd(paste('HPC/exp_',e_id, sep=''))
 lyrs_list <- layers$short_name
@@ -189,15 +212,14 @@ setwd('../../')
 
 # For the analysis separate the positive and negative networks
 farm_multilayer_pos <- farm_multilayer %>% filter(edge_type=='pos')
-farm_multilayer_neg <- farm_multilayer %>% filter(edge_type=='neg')
 
 # for CC:
-farm_multilayer_pos_20 <- farm_multilayer %>% filter(edge_type=='pos')
-write_csv(farm_multilayer_pos_20, 'local_output/farm_multilayer_pos_20.csv')
-farm_multilayer_pos_10 <- farm_multilayer %>% filter(edge_type=='pos')
-write_csv(farm_multilayer_pos_10, 'local_output/farm_multilayer_pos_10.csv')
-farm_multilayer_pos_05 <- farm_multilayer %>% filter(edge_type=='pos')
-write_csv(farm_multilayer_pos_05, 'local_output/farm_multilayer_pos_05.csv')
+write_csv(farm_multilayer_pos, 
+          paste('local_output/core_range/farm_multilayer_pos_', percent_str,'.csv', sep = ''))
+#farm_multilayer_pos_10 <- farm_multilayer %>% filter(edge_type=='pos')
+#write_csv(farm_multilayer_pos_10, 'local_output/farm_multilayer_pos_10.csv')
+#farm_multilayer_pos_05 <- farm_multilayer %>% filter(edge_type=='pos')
+#write_csv(farm_multilayer_pos_05, 'local_output/farm_multilayer_pos_05.csv')
 
 all_nodes <- sort(unique(c(farm_multilayer_pos$from, farm_multilayer_pos$to)))
 all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
@@ -233,15 +255,14 @@ farm_multilayer_pos_final %<>%
   group_by(from) %>%
   mutate(num_farms_from=n_distinct(level_name)) %>%
   filter(num_farms_from>=2)
-# tree <- readRDS("local_output/rooted_phylo_tree.rds") # only for 5%
-phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
+phylo_tree <- readRDS("local_output/rooted_phylo_tree.rds")
 # a for loop that calculates all the interlayer edges based on unifrac
 inter_PF_U <- NULL
 for (i in unique(farm_multilayer_pos_final$from)) {
   print(i)
   ASV_net <- farm_multilayer_pos_final %>%
     filter(from==i)
-  tree <- phylo_tree$tree
+  tree <- phylo_tree
   # prune the tree
   included_asvs <- unique(ASV_net$to)
   unincluded <- tree$tip.label[!tree$tip.label %in% included_asvs]
@@ -280,7 +301,13 @@ multilayer_unif <- rbind(intra %>% mutate(type='intra'),
                          inter %>% mutate(type='inter'))
 table(multilayer_unif$type)
 
-#5 Edge weight distributions
+write_csv(multilayer_unif, 
+          paste('local_output/core_range/multilayer_net_', percent_str,'.csv', sep = ''))
+
+# open pdf handle
+pdf(paste('local_output/core_range/modularity_analysis_', percent_str,'.pdf', sep = ''),8,8)
+
+#1 Edge weight distributions
 ggplot(multilayer_unif, aes(weight, fill=type))+
   geom_density(alpha=0.5)+
   labs(x='Edge weight', y='Density', title='Edge weight distributions')+
@@ -292,20 +319,20 @@ ggplot(multilayer_unif, aes(weight, fill=type))+
         legend.position = c(0.9,0.9))
 
 ## Run Infomap ------------------------------------------------------
-# multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
-# multilayer_jaccard <- read_csv('local_output/multilayer_jaccard.csv')
+multilayer_unif <- read_csv(paste('local_output/core_range/multilayer_net_', percent_str,'.csv', sep = ''))
 net <- multilayer_unif[,1:5]
-# net <- multilayer_jaccard[,1:5]
 
 # Run Infomap
 multilayer_for_infomap <- create_multilayer_object(extended = net, nodes = all_nodes, layers = layers)
-m <- run_infomap_multilayer_multilevel(multilayer_for_infomap, two_level = F, 
-                                       flow_model = 'undirected', silent = F, 
-                                       trials = 2, relax = F, seed=NULL)
+m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
+                                            flow_model = 'undirected',  
+                                            trials = 200, relax = F, seed=123)
 
 modules <- m$modules %>% left_join(layers)
 
-
+write_csv(modules, 
+          paste('local_output/core_range/multilayer_modules_', percent_str,'.csv', sep = ''))
+modules %<>% rename(level1=module)
 
 ## Analyze observed modularity results -------------------------------
 # no threshold
@@ -346,40 +373,20 @@ modules %>%
   scale_fill_viridis_c(limits = c(0, 1))+
   labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
   paper_figs_theme
+dev.off() # this closes the handle that prints modularity plots
 
-# For paper----
-## Number of cows in which microbes occur -----------
-ASV_Core %>%
-  group_by(ASV_ID) %>%
-  summarise(habitats=n_distinct(Cow_Code)) %>%
-  ggplot(aes(habitats))+
-  geom_histogram(fill='brown', color='white')+
-  labs(x='Number of cows', y='Count')+
-  html_figs_theme_no_legend
-
-## Number of farms in which microbes occur -----------
-ASV_Core %>%
-  group_by(ASV_ID) %>%
-  summarise(habitats=n_distinct(Farm)) %>%
-  arrange(desc(habitats)) %>% 
-  group_by(habitats) %>% 
-  summarise(n=n_distinct(ASV_ID)) %>% 
-  ggplot(aes(habitats, n))+
-  geom_col(fill='dark green')+
-  labs(x='Number of farms', y='Count')+
-  scale_x_continuous(breaks = seq(0,7,1))+
-  paper_figs_theme_no_legend
+# For paper -----
 
 # Clustering coefficient---------------------
+
+# Distributions of observed CC - only the 30% threshold:
+farm_multilayer_pos <- read_csv('local_output/farm_multilayer_pos_30.csv')
 
 CC_obs <- 
   farm_multilayer_pos %>%
   group_by(level_name) %>% 
   group_modify(~calc_CC_local(.x)) %>%
   drop_na()
-
-
-# Distributions of observed CC
 
 CC_obs %>% 
   filter(k>=10) %>% 
@@ -394,54 +401,38 @@ CC_obs %>%
   labs(y='Clustering coefficient', x='Farm') +
   paper_figs_theme_no_legend
 
-# Comparison between the thresholds:
-farm_multilayer_pos_30 <-read_csv('local_output/farm_multilayer_pos_30.csv') # read observed network (30%)
 
-CC_obs_30 <- 
-  farm_multilayer_pos_30 %>%
-  group_by(level_name) %>% 
-  group_modify(~calc_CC_local(.x)) %>%
-  drop_na()
+# Distributions of observed CC - Comparison between the thresholds:
+farm_multilayer_pos_30 <-read_csv('local_output/farm_multilayer_pos_30.csv')
+farm_multilayer_pos_20 <-read_csv('local_output/farm_multilayer_pos_20.csv') 
+farm_multilayer_pos_10 <-read_csv('local_output/farm_multilayer_pos_10.csv') 
+farm_multilayer_pos_05 <-read_csv('local_output/farm_multilayer_pos_05.csv')
 
-CC_obs_30 %<>% mutate(Threshold='30')
+CC_obs_30 <- farm_multilayer_pos_30 %>%
+             group_by(level_name) %>% 
+             group_modify(~calc_CC_local(.x)) %>%
+             drop_na() %>%
+             mutate(Threshold='30')
 
+CC_obs_20 <- farm_multilayer_pos_20 %>%
+             group_by(level_name) %>% 
+             group_modify(~calc_CC_local(.x)) %>%
+             drop_na() %>%
+             mutate(Threshold='20')
 
-# 20%
-farm_multilayer_pos_20 <-read_csv('local_output/farm_multilayer_pos_20.csv') # read network
-CC_obs_20 <- 
-  farm_multilayer_pos_20 %>%
-  group_by(level_name) %>% 
-  group_modify(~calc_CC_local(.x)) %>%
-  drop_na()
+CC_obs_10 <- farm_multilayer_pos_10 %>%
+             group_by(level_name) %>% 
+             group_modify(~calc_CC_local(.x)) %>%
+             drop_na() %>%
+             mutate(Threshold='10')
 
-CC_obs_20 %<>% mutate(Threshold='20')
+CC_obs_05 <- farm_multilayer_pos_05 %>%
+             group_by(level_name) %>% 
+             group_modify(~calc_CC_local(.x)) %>%
+             drop_na() %>%
+             mutate(Threshold='05')
 
-CC_obs_all <- rbind(CC_obs_30, CC_obs_20)
-
-# 10%
-farm_multilayer_pos_10 <-read_csv('local_output/farm_multilayer_pos_10.csv') # read network
-
-CC_obs_10 <- 
-  farm_multilayer_pos_10 %>%
-  group_by(level_name) %>% 
-  group_modify(~calc_CC_local(.x)) %>%
-  drop_na()
-
-CC_obs_10 %<>% mutate(Threshold='10')
-CC_obs_all <- rbind(CC_obs_all, CC_obs_10)
-
-# 5%
-farm_multilayer_pos_05 <-read_csv('local_output/farm_multilayer_pos_05.csv') # read network
-
-CC_obs_05 <- 
-  farm_multilayer_pos_05 %>%
-  group_by(level_name) %>% 
-  group_modify(~calc_CC_local(.x)) %>%
-  drop_na()
-
-CC_obs_05 %<>% mutate(Threshold='05')
-CC_obs_all <- rbind(CC_obs_all, CC_obs_05)
-
+CC_obs_all <- bind_rows(CC_obs_30, CC_obs_20, CC_obs_10, CC_obs_05)
 
 # Distributions of observed CC
 pdf('local_output/figures/clustering_coefficient_thresholds.pdf',10,6)

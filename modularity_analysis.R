@@ -169,8 +169,8 @@ write_csv(multilayer_unif,'local_output/multilayer_unif.csv')
 multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
  
 # Edge weight distributions
-# pdf('fixed_data/local_output/figures/edge_weights_unifrac_inter.pdf',8,8)
-png(filename = 'local_output/figures/edge_weights_unifrac_inter.png', width = 1300, height = 900, res = 300)
+pdf('local_output/figures/edge_weights_unifrac_inter.pdf',8,8)
+#png(filename = 'local_output/figures/edge_weights_unifrac_inter.png', width = 1300, height = 900, res = 300)
 ggplot(multilayer_unif, aes(weight, fill=type))+
   geom_density(alpha=0.5)+
   labs(x='Edge weight', y='Density', tag = "(C)")+
@@ -374,7 +374,7 @@ arrange(desc(n))
 modules_obs %<>% rename(level1=module)
 
 png(filename = 'local_output/figures/modules_unif_no_thresh.png', width = 1200, height = 900, res = 300)
-modules_obs %>%
+a <- modules_obs %>%
   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(short_name) %>%
   mutate(nodes_in_layers=n_distinct(node_id)) %>%
@@ -389,17 +389,18 @@ modules_obs %>%
   scale_x_continuous(breaks = seq(1, max(modules_obs$level1), 1))+
   scale_fill_viridis_c(limits = c(0, 1))+
   theme_bw()+
-  labs(x='Module ID', y='', title = "No threshold", tag = "(A)")+
+  labs(x='Module ID', y='', title = "No threshold")+
   theme(panel.grid=element_blank(),
         axis.text = element_text(size=10, color='black'),
         axis.title = element_text(size=10, color='black'),
         title = element_text(size=10, color='black'),
-        plot.tag = element_text(face = "bold")) 
-  paper_figs_theme
+        plot.tag = element_text(face = "bold")) +
+  paper_figs_theme_no_legend
+a
 dev.off()
 
 png(filename = 'local_output/figures/modules_unif_with_thresh.png', width = 1200, height = 900, res = 300)
-modules_obs %>%
+b <- modules_obs %>%
   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(short_name) %>%
   mutate(nodes_in_layers=n_distinct(node_id)) %>%
@@ -416,18 +417,31 @@ modules_obs %>%
   scale_x_continuous(breaks = seq(1, max(modules_obs$level1), 1))+
   scale_fill_viridis_c(limits = c(0, 1))+
   theme_bw()+
-  labs(x='Module ID', y='', title = "With threshold (0.03)", tag = "(B)")+
+  labs(x='Module ID', y='', title = "With threshold (0.03)")+
   theme(panel.grid=element_blank(),
         axis.text = element_text(size=10, color='black'),
         axis.title = element_text(size=10, color='black'),
         title = element_text(size=10, color='black'),
-        plot.tag = element_text(face = "bold")) 
-  paper_figs_theme
+        plot.tag = element_text(face = "bold"), 
+        legend.title=element_blank())
+b
 dev.off()
 
-#plot_grid(plt_richness_per_cow, plt_richness_per_farm, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
+pdf('local_output/figures/SI_modules_heir.pdf',10,6)
+plot_grid(a, b, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
+dev.off()
+
 
 # Compared to shuffled networks -------------------------------------------
+# read observed for comparing:
+modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
+mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', 
+                            col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))
+# get the latest run
+mod_summary_obs <- mod_summary_obs[which.max(mod_summary_obs$time_stamp),] 
+num_modules_obs <- mod_summary_obs$top_modules
+L_obs <- mod_summary_obs$L
+
 parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
 # General stats
@@ -436,7 +450,7 @@ summ %<>% slice(tail(row_number(), 1000)) %>% filter(!str_detect(call, '-2'))
 ggplot(summ, aes(L))+
   geom_histogram()+
   geom_vline(xintercept = L_obs)
-(pvalue <- sum(summ$L<L_obs)/500)
+pvalue <- sum(summ$L<L_obs)/500
 
 ggplot(summ, aes(num_modules))+
   geom_histogram()+
@@ -451,6 +465,9 @@ ggplot(summ, aes(num_modules))+
 # Sub-folders
 sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
 
+# get model nums (because there was NA in the summ for some reason)
+module_nums <- NULL
+
 # read all 
 modules_shuffled <- NULL
 for (s in sub.folders) {
@@ -459,8 +476,26 @@ for (s in sub.folders) {
   modules_run <- fread(modules_run)
   modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
   modules_shuffled <- rbind(modules_shuffled,modules_run)
+  module_nums <- rbind(module_nums, data.table(origin=s, modules=max(modules_run$module)))
 }
 modules_shuffled <- as_tibble(modules_shuffled)
+
+# percent of shuffled networks with 1 big module as read from the modules files:
+100* (module_nums$modules == 1)/nrow(module_nums)
+
+
+a2 <- ggplot(summ, aes(L))+
+  geom_histogram()+
+  geom_vline(xintercept = L_obs, linetype = "dashed") + paper_figs_theme
+
+b2 <- ggplot(module_nums, aes(modules))+
+  geom_histogram()+ xlab("Number of modules") +
+  geom_vline(xintercept = num_modules_obs, linetype = "dashed")+ 
+  paper_figs_theme
+
+pdf('local_output/figures/SI_modularity_obs_shuff.pdf',10,6)
+plot_grid(a2, b2, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1, hjust = 0)
+dev.off()
 
 
 ## Comparing multi-level modularity to shuffled ----------------------------
@@ -688,13 +723,7 @@ z_score %>%
 # Compared to the regional network ----------------------------------------
 
 # Co-occurrence network for region scale 30%----
-e_id <- 15 
-# run_summary <- read_csv('HPC/run_summary.csv', 
-#                         col_names = c('exp_id','level','JOB_ID','data_file','time_stamp')) %>%
-#   arrange(exp_id,level)
-# run_summary %>% filter(exp_id==e_id)
-getwd()
-region_monolayer <- list.files(path = "HPC/exp_15", pattern = paste('_Region_edge_list.csv',sep=""), full.names = T)
+region_monolayer <- list.files(path = "HPC/exp_20", pattern = paste('_Region_edge_list.csv',sep=""), full.names = T)
 region_monolayer_pos <- sapply(region_monolayer, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") %>% 
   select(-id) %>%
@@ -728,7 +757,7 @@ run_infomap_monolayer <- function(x, infomap_executable='Infomap', flow_model=NU
   nodes <- x$nodes
   
   # Run Infomap for observed
-  
+
   # Infomap arguments
   arguments <- paste(' -N ',trials,' -f ',flow_model,sep='')
   arguments <- ifelse(!is.null(seed), paste(arguments, '--seed',seed), arguments)
@@ -809,12 +838,24 @@ unique(x$levels)
 n_distinct(x$module_level2)
 max(x$module_level2)
 
-write_csv(x,'fixed_data/local_output/regional_multilevel_modules.csv')
+write_csv(x,'local_output/regional_multilevel_modules.csv')
 
+# Run infomap without hieararchy
+infomap_object <- run_infomap_monolayer(network_object, 
+                                        infomap_executable='Infomap',
+                                        flow_model = 'undirected',
+                                        silent=F,trials=200, two_level=T, 
+                                        seed = 123, remove_auxillary_files=F)
+x=infomap_object$modules
+unique(x$module_level1)
+table(x$module_level1)
+
+write_csv(x,'local_output/regional_monolevel_modules.csv')
+x <- read_csv('local_output/regional_monolevel_modules.csv')
 
 
 # Draw a multilayer network -----------------------------------------------
-multilayer_unif <- read_csv('fixed_data/local_output/multilayer_unif.csv')
+multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
 
 layer_network <- 
   multilayer_unif %>%
@@ -831,7 +872,7 @@ plot(layer_network)
 E(layer_network)$weight
 V(layer_network)$name
 # V(layer_network)$color <- c('#7E1F30', '#B95466', 'red', 'red', 'yellow', 'gray','gray')
-ASV_data <- read_csv('fixed_data/local_output/core_ASV_fixed_30.csv')
+ASV_data <- read_csv('local_output/core_ASV_fixed_30.csv')
 num_ASV <- ASV_data %>%
   group_by(Farm) %>%
   summarise(ASV_num=n_distinct(ASV_ID))
@@ -844,57 +885,11 @@ plot(layer_network, edge.width=E(layer_network)$weight/50, edge.color='black', l
      vertex.size=V(layer_network)$num_ASV/40+20, vertex.color=NA)
 dev.off()
 
-
-
-# Draw modules on a map ---------------------------------------------------
-library(scatterpie)
-x <- 
-  modules %>%
-  mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  # Filter out small modules as in the non-multilevel analysis.
-  group_by(short_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  filter(nodes_percent>=0.03) %>%
-  # Now focus on the main module
-  filter(level1==1) %>%
-  # Recalculate the proportion of ASVs as: the number of ASVs in a sub-module in
-  # a layer divided by the total number of ASVs included in the top module
-  group_by(short_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level2) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level2, nodes_percent) %>% 
-  arrange(level2, short_name) %>% 
-  filter(nodes_percent>=0.03) %>% 
-  spread(level2, nodes_percent, fill=0)
-
-x
-x$lat=x$lon=1:nrow(x)
-
-ggplot()+
-  geom_scatterpie(aes(x=lat, y=lon, group=short_name, r=0.7), alpha=0.6, 
-                  data= x, 
-                  cols=colnames(x[,2:5]))+coord_fixed()
-
-worldmap <- map_data("world")
-sierras_location <- make_bbox(lon= c(-58.5, -57.75), lat= c(-38, -37.6))  
-main_map_bottom <- get_map(location=sierras_location, zoom=10, maptype="terrain") %>% 
-  ggmap()+ #create a terrain map based on sierras
-  geom_scatterpie(aes(x=lon, y=lat, group=layer_id, r=0.028), alpha=0.6, 
-                  data= pie_chart_data_bottom, 
-                  cols=colnames(pie_chart_data_bottom[,c(4:10)]))+ #create a pie chart for every location with the <10 precentile
-  coord_fixed(xlim=c(-58.5, -57.75), ylim=c(-38, -37.6)) #set the coordinates to the location of sierras
-main_map_bottom <- main_map_bottom + guides(fill=guide_legend(title="module\nnumber"))
-
 # Draw modules for each farm pie charts -----
-modules_obs <- read_csv('fixed_data/local_output/farm_modules_pos_30_U.csv')
-modules_obs %<>% select(node=node_id, module=level1, farm=short_name)
+modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
+modules_obs %<>% select(node=node_id, module, farm=short_name)
 
-pdf('fixed_data/local_output/figures/layer_modules_composition.pdf',6,6)
+pdf('local_output/figures/layer_modules_composition.pdf',6,6)
 modules_obs %>% 
   group_by(farm,module) %>% 
   summarise(n=n()) %>% 
@@ -911,7 +906,7 @@ modules_obs %>%
   paper_figs_theme_no_legend+theme_void()
 dev.off()
 
-#check percentage of modules 7-10
+
 
 # compare a farm's density to its connectivity to other farms ------
 multilayer_unif <- read_csv('fixed_data/local_output/multilayer_unif.csv')

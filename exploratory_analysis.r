@@ -80,8 +80,8 @@ ASV_Core_30 %>%
             S_max=max(S_cow)) %>% 
   mutate(ASV_summary=paste(S_mean,' [',S_min,'-',S_max,']',sep=''))
 
-png(filename = 'local_output/figures/ASV_richness_per_cow_per_farm.png', width = 1500, height = 1000, res = 300)
-# plt_richness_per_cow_farm <- 
+#png(filename = 'local_output/figures/ASV_richness_per_cow_per_farm.png', width = 1500, height = 1000, res = 300)
+plt_richness_per_cow_farm <- 
 ASV_Core_30 %>%
   group_by(Country,Farm,Cow_Code) %>%
   summarise(richness=n_distinct(ASV_ID)) %>%
@@ -91,7 +91,7 @@ ASV_Core_30 %>%
   theme_bw() +
   labs(y = 'ASV richness per cow per farm') +
   paper_figs_theme_no_legend
-dev.off()
+#dev.off()
 ## @knitr END
 
 ## Number of cows in which microbes occur -----------
