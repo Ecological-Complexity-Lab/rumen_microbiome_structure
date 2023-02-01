@@ -365,11 +365,20 @@ summarise(n=n_distinct(node_id)) %>%
 arrange(desc(n))
 
 plot(a)
+
 # And within layers
+tot <- modules_obs %>%
+  group_by(short_name) %>% 
+  summarise(n_farm=n_distinct(node_id)) %>%
+  arrange(desc(n_farm))
+
+# percentages of modules in each the farm
 modules_obs %>%
 group_by(short_name,module) %>% 
 summarise(n=n_distinct(node_id)) %>%
-arrange(desc(n))
+left_join(tot, by="short_name") %>%
+mutate(per_of_farm=100*n/n_farm) %>% arrange(desc(per_of_farm))
+
 
 modules_obs %<>% rename(level1=module)
 
