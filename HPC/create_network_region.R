@@ -10,7 +10,6 @@ library(vegan)
 library(cooccur)
 library(igraph)
 
-# args <- c('ASV_Core_final_0.5.csv', 'Bian)
 JOB_ID <- Sys.getenv("JOB_ID")
 if (length(commandArgs(trailingOnly=TRUE))==0) {
   stop('No arguments were found!')
@@ -64,6 +63,9 @@ if (!is_shuff) {
 ASV_co <- cooccur(ASV_occurrence_mat_cow, spp_names = TRUE)
 ASV_co <- ASV_co$results
 
+# add jaccard values, and using them as weight:	
+ASV_co %<>% mutate(weight=obs_cooccur/(sp1_inc+sp2_inc-obs_cooccur))
+
 # Do all the ASVs appear?
 x <- sort(unique(ASV_cow$ASV_ID))
 y <- sort(unique(c(ASV_co$sp1_name,ASV_co$sp2_name)))
@@ -72,7 +74,7 @@ write_to_log(paste('Do all the ASVs appear?',setequal(x,y)), exp_id = exp_id, JO
 # Create the co-occurrence network
 ASV_co %<>%
   as_tibble() %>%
-  select(sp1,sp2,weight=prob_cooccur, everything()) %>% 
+  select(sp1,sp2,weight, everything()) %>% 
   mutate(edge_type=case_when(
     p_lt < 0.05 & p_gt >= 0.05 ~ "neg",
     p_lt >= 0.05 & p_gt < 0.05 ~ "pos",
