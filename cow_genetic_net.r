@@ -37,7 +37,7 @@ all_cow <- rbind.data.frame(SNPs_h, SNPs_r)
 
 
 saveRDS(all_cow, "local_output/cows_SNPs_filtered.rds")
-write_csv(all_cow, 'local_output/cows_SNPs_filtered.csv')
+write_csv(all_cow, 'local_output/cows_SNPs_filtered.csv') # this file is big so will not be pushed to github.
 
 # TODO remove, so this is temp.
 write.csv(as.data.frame(SNPs_r[1:100, 1:1000]), '~/Desktop/nordic_cows.csv')
