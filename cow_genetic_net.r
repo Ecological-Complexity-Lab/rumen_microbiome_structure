@@ -46,7 +46,25 @@ write.csv(as.data.frame(SNPs_r[1:100, 1:1000]), '~/Desktop/nordic_cows.csv')
 
 # TODO now we have the matrix in a genotype manner. From here calculate the similarity between cows
 
+# hopefully use Noa's code here to construct a similarity matrix, or an edgelist
+
+# TODO Here we have an edgelist using cow IDs
 
 
+# Get Cow-farm correct labeling
+cowdata <- readxl::read_excel('raw_data/RuminOmics_Animal_Phenotypes_for_Mizrahi_v2_plus_rt_quantification_with_total_20170921_and_depth.xlsx', sheet = 3)
+cowdata <- cowdata %>%
+  select(`Cow ID`, `Farm/Research site code`, `Cow Code`) %>%   # Select only relevant columns
+  drop_na()    # Remove all rows with NAs
+colnames(cowdata) <- c('ID', 'Farm', 'Cow_Code')
+cowdata %<>% 
+  mutate(Farm=replace(Farm, Farm=='NUDC', 'UK1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Park', 'UK2')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Bianchini', 'IT1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Franciosi', 'IT2')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Gandolfi', 'IT3')) %>%
+  mutate(Farm=replace(Farm, Farm=='MinkiÃ¶', 'FI1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='RÃ¶bÃ¤cksdalen', 'SE1'))
 
+# Join cow labeling to the node or edges so we can connect cow to farm
 
