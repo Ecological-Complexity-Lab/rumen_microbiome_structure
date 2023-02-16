@@ -4,6 +4,8 @@
 
 # includes ----
 library(snpStats)
+library(readr)
+
 
 # consts and functions ----
 # Southern breed
@@ -37,6 +39,8 @@ all_cow <- rbind.data.frame(SNPs_h, SNPs_r)
 
 
 saveRDS(all_cow, "local_output/cows_SNPs_filtered.rds")
+
+all_cow <- readRDS("local_output/cows_SNPs_filtered.rds")
 write_csv(all_cow, 'local_output/cows_SNPs_filtered.csv') # this file is big so will not be pushed to github.
 
 # TODO remove, so this is temp.
