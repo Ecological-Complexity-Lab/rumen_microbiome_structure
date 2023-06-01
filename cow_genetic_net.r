@@ -6,7 +6,6 @@
 library(snpStats)
 library(readr)
 
-
 # consts and functions ----
 # Southern breed
 bed_h <- "raw_data/Cows_SNPs/Ruminomics_Holstein.bed"
@@ -71,4 +70,90 @@ cowdata %<>%
   mutate(Farm=replace(Farm, Farm=='RÃ¶bÃ¤cksdalen', 'SE1'))
 
 # Join cow labeling to the node or edges so we can connect cow to farm
+
+
+# Get list of cows that appear in both data sets -----
+# compare the set of cows with SNPs to the set with microbiome data
+library(tidyverse)
+
+## SNP ----
+# read SNP cows ids and combine to one df
+nord_snp <- read_delim("raw_data/Cows_SNPs/Ruminomics_NordicRed.fam", 
+                       skip_empty_rows = TRUE,col_names = FALSE)
+hols_snp <- read_delim("raw_data/Cows_SNPs/Ruminomics_Holstein.fam", 
+                     skip_empty_rows = TRUE,col_names = FALSE)
+nord_snp$ID <- as.numeric(nord_snp$X1)
+hols_snp$ID <- as.numeric(hols_snp$X1)
+
+ambas <- rbind(nord_snp, hols_snp) 
+nrow(ambas)
+
+min(ambas$ID)
+max(ambas$ID)
+
+## Microbiome cows -----
+# read microbiome cows ids - all cow in our data
+# read only id of cows used in the analysis:
+ASV_Core_30 <- read_csv('local_output/core_ASV_30.csv') %>% 
+  mutate(Farm=factor(Farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1')))
+
+microbs <- ASV_Core_30 %>%
+  group_by(Cow_Code) %>%
+  summarise(microbs=n()) %>%
+  arrange(Cow_Code) %>%
+  separate(Cow_Code, into = c("country", "ID"), c(2))%>%
+  mutate(breed=case_when(country %in% c("FI", "SE") ~ "Nordic",
+                         !country %in% c("FI", "SE") ~ "Holstein"))
+microbs$ID <- as.numeric(microbs$ID)
+nrow(microbs)
+
+min(microbs$ID)
+max(microbs$ID)
+
+table(microbs$breed)
+# Holstein   Nordic 
+# 816      196 
+
+# compare all cows in SNP vs microbiome
+micr <- microbs$ID
+
+length(intersect(snp, micr))
+setdiff(snp, micr)
+setdiff(micr, snp)
+
+## compare datasets for each breed separately -----
+# Nordics:
+nord_micr <- microbs[microbs$breed == "Nordic",]
+
+# differences
+nrow(nord_snp) # SNPs
+nrow(nord_micr) # Microbiome
+
+setdiff(nord_snp$ID, nord_micr$ID)
+setdiff(nord_micr$ID, nord_snp$ID)
+length(intersect(nord_snp$ID, nord_micr$ID))
+
+# Holstein:
+hols_micr <- microbs[microbs$breed == "Holstein",]
+
+# differences
+nrow(hols_snp) # SNPs
+nrow(hols_micr) # microbiome
+
+setdiff(hols_snp$ID, hols_micr$ID)
+setdiff(hols_micr$ID, hols_snp$ID)
+length(intersect(hols_snp$ID, hols_micr$ID))
+
+# Save intersection cows -----
+# output intersections cow ids between SNPs and microbiome data
+nord_intr_df <- data.frame(cow_id=intersect(nord_snp$ID, nord_micr$ID),
+                           breed="NordicRed")
+hols_intr_df <- data.frame(cow_id=intersect(hols_snp$ID, hols_micr$ID),
+                           breed="Holstein")
+length(intersect(nord_snp$ID, nord_micr$ID))
+length(intersect(hols_snp$ID, hols_micr$ID))
+
+# save cow intersection
+write.csv(rbind(hols_intr_df, nord_intr_df), 'local_output/SNP_micro_intersect_cows.csv')
+
 
