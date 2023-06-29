@@ -5,6 +5,9 @@
 # includes ----
 library(snpStats)
 library(readr)
+library(tidyverse)
+library(dendextend)
+
 
 # consts and functions ----
 # Southern breed
@@ -74,7 +77,6 @@ cowdata %<>%
 
 # Get list of cows that appear in both data sets -----
 # compare the set of cows with SNPs to the set with microbiome data
-library(tidyverse)
 
 ## SNP ----
 # read SNP cows ids and combine to one df
@@ -156,4 +158,69 @@ length(intersect(hols_snp$ID, hols_micr$ID))
 # save cow intersection
 write.csv(rbind(hols_intr_df, nord_intr_df), 'local_output/SNP_micro_intersect_cows.csv')
 
+# produce the combined cow list with country and farm data -----
+a <- read.delim('list cows in combined dataset.txt', header = FALSE, sep = " ")
+
+# Get Cow-farm correct labeling
+cowdata <- readxl::read_excel('raw_data/RuminOmics_Animal_Phenotypes_for_Mizrahi_v2_plus_rt_quantification_with_total_20170921_and_depth.xlsx', sheet = 3)
+cowdata <- cowdata %>%
+  select(`Cow ID`, `Farm/Research site code`, `Cow Code`, Country) %>%   # Select only relevant columns
+  drop_na()    # Remove all rows with NAs
+colnames(cowdata) <- c('ID', 'Farm', 'Cow_Code', 'Country')
+cowdata %<>% 
+  mutate(Farm=replace(Farm, Farm=='NUDC', 'UK1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Park', 'UK2')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Bianchini', 'IT1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Franciosi', 'IT2')) %>% 
+  mutate(Farm=replace(Farm, Farm=='Gandolfi', 'IT3')) %>%
+  mutate(Farm=replace(Farm, Farm=='MinkiÃ¶', 'FI1')) %>% 
+  mutate(Farm=replace(Farm, Farm=='RÃ¶bÃ¤cksdalen', 'SE1'))
+
+
+both <- a %>% left_join(cowdata, by=c('V1' = 'ID'))
+
+write.csv(both, 'local_output/cow_list_locations.csv')
+
+
+# visualize the genetic similarity results produced by Keren ------
+res <- read.csv('./cows_genetic_results/genmb_similarity_matrix_weighted.csv', header = TRUE, row.names = 1)
+lbls <- read.csv('local_output/cow_list_locations.csv', row.names = 1) %>% 
+          select(cow_id=V1, Farm, Country) %>% 
+          mutate(breed=case_when(Country %in% c("FI", "SE") ~ "Nordic",
+                                 !Country %in% c("FI", "SE") ~ "Holstein"))
+lbls <- tibble(lbls)
+
+# make sure it is symmetric
+res1 <- res
+rr <- paste("X", rownames(res1), sep = "")
+rownames(res1) <- rr
+isSymmetric(as.matrix(res1))
+
+get_id <- function(strr) {
+  both <- strsplit(strr,"_")
+  # sanity check
+  if (both[[1]][1] != both[[1]][2]) stop('The ID string is now a double cow ID.')
+  return(as.integer(both[[1]][1]))
+}
+
+labels <- unlist(lapply(rownames(res), get_id))
+dnd_lbls <- tibble(cow_id=labels) %>% 
+          left_join(lbls, by="cow_id") 
+# prepare to make colors:
+dnd_lbls2 <- dnd_lbls %>% 
+          mutate_at(2, as_factor)%>%  mutate_at(2, as.numeric) %>%
+          mutate_at(3, as_factor)%>%  mutate_at(3, as.numeric) %>%
+          mutate_at(4, as_factor) %>%  mutate_at(4, as.numeric)
+
+# create a dendagram
+dendi <- as.dist(1-res) %>% # convert *similarity* matrix to a *distance* object 
+  hclust(method = "ward.D2") %>% # Hierarchical clustering 
+  as.dendrogram() # Turn the object into a dendrogram
+
+
+pdf("./cow_genetics.pdf", 10, 6)
+dendi %>% set("labels", "") %>% plot
+colored_bars(colors = cbind(dnd_lbls2$breed, dnd_lbls2$Country, dnd_lbls2$Farm),
+             rowLabels = c("Breeds", "Country" , "Farm"))
+dev.off()
 
