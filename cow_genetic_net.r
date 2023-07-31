@@ -278,3 +278,57 @@ pdf("local_output/figures/cow_genetics.pdf", 6, 6)
 p3
 dev.off()
 
+# Analyse genetic tree structure ----
+# explore the tree structure in the first two levels, regarding annotations
+x <- as_tibble(tree)
+
+y <- full_join(x, dnd_lbls, by = c('label' = 'id'))
+new_tree <- as.treedata(y)
+
+y # node number 1 is a leaf with a label (an actual cow)
+ancestor(y, 1) # from this we learn node *936* is the top node
+child(y, 936) # level 1 division is between nodes 937 and 938
+
+
+## Level 1 analysis: ----
+cows_north <- offspring(y, 937) %>% filter(!is.na(label)) # Northern cluster
+cows_south <- offspring(y, 938) %>% filter(!is.na(label)) # Southern cluster
+
+nrow(cows_north) # 194 cows in the northern cluster
+nrow(cows_south) # 741 cows in the south
+
+table(cows_north$breed) # only Nordic Red cows in the south
+table(cows_south$breed) # only Holstein cows in the south
+
+table(cows_north$Country) # FI=100, SE=94
+table(cows_south$Country) # UK=368, IT=373
+
+
+## Level 2 analysis: ----
+
+# Northern cluster:
+child(y, 937) # level 2 - north division is between nodes 949 and 950
+
+nord_1 <- offspring(y, 949) %>% filter(!is.na(label)) # Nord-1
+nord_2 <- offspring(y, 950) %>% filter(!is.na(label)) # Nord-2
+
+nrow(nord_1) # 141 cows
+nrow(nord_2) # 53  cows
+
+table(nord_1$Country) # FI=95, SE=46
+table(nord_2$Country) # FI=5,  SE=48
+
+
+# Southern cluster:
+child(y, 938) # level 2 - south division is between nodes 939 and 940
+
+south_1 <- offspring(y, 939) %>% filter(!is.na(label)) # south-1
+south_2 <- offspring(y, 940) %>% filter(!is.na(label)) # south-2
+
+nrow(south_1) # 28 cows
+nrow(south_2) # 713  cows
+
+table(south_1$Country) # UK=28,  IT=0
+table(south_2$Country) # UK=368, IT=345
+
+
