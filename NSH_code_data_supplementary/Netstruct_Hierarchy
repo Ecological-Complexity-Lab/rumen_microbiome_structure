@@ -1,0 +1,3 @@
+## running Netstruct Hierarchy (source: https://github.com/amirubin87/NetStruct_Hierarchy.git):
+
+java -jar NetStruct_Hierarchy_v1.1.jar -pro ./OUTPUT_FOLDER/ -pm ./INPUT_FILE.txt -pmn ./Nodes_sample_sites.txt -pss ./Sample_sites.txt  
