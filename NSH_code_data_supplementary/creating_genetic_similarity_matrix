@@ -1,0 +1,6 @@
+## Creating the genetic similarity matrix to input into Netstruct Hierarchy (source: https://github.com/Greenbaum-Lab/FWASS.git):
+
+python3 compute_similarity.py -i INPUT_FILE.vcf --weighted --ns -o OUTPUT_FILE
+
+## the “--weighted” flag calculates an allele frequency-weighted metric 
+## the “—ns” flag converts the output into a format that is compatible with the input format required for Netstruct Hierarchy (.txt file)
