@@ -7,6 +7,7 @@ library(snpStats)
 library(readr)
 library(tidyverse)
 library(dendextend)
+library(ape)
 
 
 # consts and functions ----
@@ -183,19 +184,29 @@ write.csv(both, 'local_output/cow_list_locations.csv')
 
 
 # visualize the genetic similarity results produced by Keren ------
+library(ggtreeExtra)
+library(ggtree)
+library(ggplot2)
+library(ggnewscale)
+library(treeio)
+library(tidytree)
+library(dplyr)
+library(ggstar)
+
+# read data
 res <- read.csv('./cows_genetic_results/genmb_similarity_matrix_weighted.csv', header = TRUE, row.names = 1)
+phy <- as.dist(1-res) %>% # convert *similarity* matrix to a *distance* object 
+  hclust(method = "ward.D2") %>% as.phylo()
+tree <- treeio::as.treedata(phy)
+
+# read metadata
 lbls <- read.csv('local_output/cow_list_locations.csv', row.names = 1) %>% 
-          select(cow_id=V1, Farm, Country) %>% 
-          mutate(breed=case_when(Country %in% c("FI", "SE") ~ "Nordic",
-                                 !Country %in% c("FI", "SE") ~ "Holstein"))
+  select(cow_id=V1, Farm, Country) %>% 
+  mutate(breed=case_when(Country %in% c("FI", "SE") ~ "Nordic",
+                         !Country %in% c("FI", "SE") ~ "Holstein"))
 lbls <- tibble(lbls)
 
-# make sure it is symmetric
-res1 <- res
-rr <- paste("X", rownames(res1), sep = "")
-rownames(res1) <- rr
-isSymmetric(as.matrix(res1))
-
+# this is used to parse the cow_id to be able to join with the metadata
 get_id <- function(strr) {
   both <- strsplit(strr,"_")
   # sanity check
@@ -204,23 +215,66 @@ get_id <- function(strr) {
 }
 
 labels <- unlist(lapply(rownames(res), get_id))
-dnd_lbls <- tibble(cow_id=labels) %>% 
-          left_join(lbls, by="cow_id") 
-# prepare to make colors:
-dnd_lbls2 <- dnd_lbls %>% 
-          mutate_at(2, as_factor)%>%  mutate_at(2, as.numeric) %>%
-          mutate_at(3, as_factor)%>%  mutate_at(3, as.numeric) %>%
-          mutate_at(4, as_factor) %>%  mutate_at(4, as.numeric)
+dnd_lbls <- tibble(cow_id=labels) %>% left_join(lbls, by="cow_id") 
+dnd_lbls$id <- paste(dnd_lbls$cow_id, "_", dnd_lbls$cow_id, sep = "")
 
-# create a dendagram
-dendi <- as.dist(1-res) %>% # convert *similarity* matrix to a *distance* object 
-  hclust(method = "ward.D2") %>% # Hierarchical clustering 
-  as.dendrogram() # Turn the object into a dendrogram
+breedcolors <- dnd_lbls %>%
+  select(c("breed")) %>%
+  distinct()
+breedcolors$colors <- c("navyblue", "#00B6EB")
 
+#doing this manually because we need a specific order in the colors and legend
+countrycolors <- tibble(1:4) 
+countrycolors$Country <- c("FI", "SE", "UK", "IT")
+countrycolors$colors <- c("#f0a4ff", "#7d37be", "#07ba1b", "darkgreen")
 
-pdf("./cow_genetics.pdf", 10, 6)
-dendi %>% set("labels", "") %>% plot
-colored_bars(colors = cbind(dnd_lbls2$breed, dnd_lbls2$Country, dnd_lbls2$Farm),
-             rowLabels = c("Breeds", "Country" , "Farm"))
+farmcolors <- tibble(1:7)
+farmcolors$Farm <- c("FI1", "SE1", "UK1", "UK2", "IT1", "IT2", "IT3")
+farmcolors$colors <- c("#fff45d", "#fbcd4f", "#f6a541", "#f27e33", "#ed5724", "#e92f16", "#C80707")
+
+dnd_lbls$breed   <- factor(dnd_lbls$breed, levels=breedcolors$breed)
+dnd_lbls$Country <- factor(dnd_lbls$Country, levels=countrycolors$Country)
+dnd_lbls$Farm    <-  factor(dnd_lbls$Farm, levels=farmcolors$Farm)
+
+meta <- dnd_lbls %>% select(id, Breed = breed, Country, Farm)
+
+# start building the tree
+p <- ggtree(tree, layout="fan", open.angle=5, size=0.2, branch.length = "none")
+p <- p %<+% meta
+
+# adding the breed
+p1 <-p +
+  geom_fruit(geom=geom_tile,
+             mapping=aes(fill=Breed),
+             width=1.8,
+             offset=0.05) +
+  scale_fill_manual(name="Breed",
+                    values=breedcolors$colors,
+                    guide=guide_legend(keywidth=0.3, keyheight=0.5, ncol=1, order=2)) +
+  theme(legend.title=element_text(size=10), 
+        legend.text=element_text(size=8),
+        legend.spacing.y = unit(0.05, "cm"))
+p2 <-p1 +
+  new_scale_fill() +
+  geom_fruit(geom=geom_tile,
+             mapping=aes(fill=Country),
+             width=1.8,
+             offset=0.08) +
+  scale_fill_manual(name="Country",
+                    values=countrycolors$colors,
+                    guide=guide_legend(keywidth=0.3, keyheight=0.5, ncol=1, order=2)) 
+p3 <-p2 +
+  new_scale_fill() +
+  geom_fruit(geom=geom_tile,
+             mapping=aes(fill=Farm),
+             width=1.8,
+             offset=0.08) +
+  scale_fill_manual(name="Farm",
+                    values=farmcolors$colors,
+                    guide=guide_legend(keywidth=0.3, keyheight=0.5, ncol=1, order=2)) 
+p3
+
+pdf("local_output/figures/cow_genetics.pdf", 6, 6)
+p3
 dev.off()
 
