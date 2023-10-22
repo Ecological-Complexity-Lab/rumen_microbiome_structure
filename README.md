@@ -1,6 +1,9 @@
 # microbiome_structure_v3
 this is a reiteration of microbiome_structure_v2 with cleaner folder tree and fixed intralayer edge weights.
 
+This repository is accompanying the paper "Scale-dependent signatures of microbial co-occurrence revealed via multilayer network analysis". 
+The paper is still in review and made available for reviewers examination. It is not yet intended for public access.
+
 # Genetic analysis
 
 when working with FWASS (see methods):
