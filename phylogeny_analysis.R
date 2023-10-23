@@ -1,4 +1,4 @@
-setwd("/Users/dafnaar/GitHub/microbiome_structure_v2")
+setwd("/Users/dafnaar/GitHub/microbiome_structure_v3")
 library(tidyverse)
 library(magrittr)
 library(reshape2) 

@@ -160,7 +160,7 @@ length(intersect(hols_snp$ID, hols_micr$ID))
 write.csv(rbind(hols_intr_df, nord_intr_df), 'local_output/SNP_micro_intersect_cows.csv')
 
 # produce the combined cow list with country and farm data -----
-a <- read.delim('list cows in combined dataset.txt', header = FALSE, sep = " ")
+a <- read.delim('cows_genetic_results/list cows in combined dataset.txt', header = FALSE, sep = " ")
 
 # Get Cow-farm correct labeling
 cowdata <- readxl::read_excel('raw_data/RuminOmics_Animal_Phenotypes_for_Mizrahi_v2_plus_rt_quantification_with_total_20170921_and_depth.xlsx', sheet = 3)
