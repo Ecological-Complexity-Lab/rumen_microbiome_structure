@@ -51,7 +51,8 @@ plt_richness_per_farm <-
   html_figs_theme_no_legend
 
 png(filename = 'local_output/figures/ASV_richness.png', width = 2300, height = 1000, res = 300)
-plot_grid(plt_richness_per_cow, plt_richness_per_farm, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
+plot_grid(plt_richness_per_cow, plt_richness_per_farm, 
+          nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
 dev.off()
 
 
@@ -80,7 +81,6 @@ ASV_Core_30 %>%
             S_max=max(S_cow)) %>% 
   mutate(ASV_summary=paste(S_mean,' [',S_min,'-',S_max,']',sep=''))
 
-#png(filename = 'local_output/figures/ASV_richness_per_cow_per_farm.png', width = 1500, height = 1000, res = 300)
 plt_richness_per_cow_farm <- 
 ASV_Core_30 %>%
   group_by(Country,Farm,Cow_Code) %>%
@@ -91,7 +91,6 @@ ASV_Core_30 %>%
   theme_bw() +
   labs(y = 'ASV richness per cow per farm') +
   paper_figs_theme_no_legend
-#dev.off()
 ## @knitr END
 
 ## Number of cows in which microbes occur -----------
@@ -116,8 +115,7 @@ p2=ASV_Core_30 %>%
   scale_x_continuous(breaks = seq(0,7,1))+
   paper_figs_theme_no_legend
 
-pdf('~/Dropbox (BGU)/Apps/Overleaf/Rumen microbiome coocurrence/microbe_occurrence.pdf', 10, 6)
-# png(filename = 'local_output/figures/microbe_occurrence.png', width = 2000, height = 1000, res = 300)
+pdf(paste(paper_output_path, "microbe_occurrence.pdf", sep = ""), 10, 6)
 plot_grid(p1,p2,nrow = 1, ncol = 2, labels = c('(A)','(B)'))
 dev.off()
 
@@ -127,15 +125,14 @@ dev.off()
 cows_per_farm <- ASV_Core_30 %>%
   group_by(Farm) %>%
   summarise(cow_num=n_distinct(Cow_Code))
-# png(filename = 'local_output/figures/cows_per_farm', width = 1600, height = 900, res = 300)
 
 cows_per_farm %>%
   ggplot(aes(Farm,cow_num))+
   geom_col(fill='dark green', color='white')+
   theme_bw() +
   labs(y = 'Number of cows per farm') +
-  theme(axis.text = element_text(size=10, color='black'), title = element_text(size=14), axis.text.x = element_text(angle = 90))
-# dev.off()
+  theme(axis.text = element_text(size=10, color='black'), 
+        title = element_text(size=14), axis.text.x = element_text(angle = 90))
 
 ## Number of co-occurrence links per farm -----
 farm_multilayer_pos <- read_csv('local_output/farm_multilayer_pos_30.csv')
@@ -143,14 +140,13 @@ links_per_farm <- farm_multilayer_pos %>%
   group_by(level_name) %>%
   mutate(link=1) %>%
   summarise(links=sum(link))
-# png(filename = 'local_output/figures/cooccurrence_links_per_farm', width = 1600, height = 900, res = 300)
+
 links_per_farm %>%
   ggplot(aes(level_name, links)) +
   geom_col(fill='dark green', color='white') +
   theme_bw() +
   labs(y = 'Number of links') +
   theme(axis.text = element_text(size=10, color='black'), title = element_text(size=14), axis.text.x = element_text(angle = 90))
-dev.off()  
 
 ## Density (connectance per farm) -------
 farm_net_density <- function(d){
@@ -172,7 +168,7 @@ cows_per_farm %>%
   left_join(farm_density, by = c('Farm'='level_name')) %>%
   as_tibble() %>% 
   rename(Cows=cow_num, ASVs=ASV_Richness, `ASVs per cow`=ASV_summary,Links=links,Density=d) %>% 
-  write_csv('fixed_data/local_output/Table1.csv')
+  write_csv('local_output/paper_table1.csv')
 
 # Cows summary across farms ------
 ASV_Core_30 %>%
@@ -229,31 +225,12 @@ ggplot(beta_diver_farms_UF, aes(x = Var1, y = Var2, fill = value, label=round(va
   scale_fill_gradient(high = "#ff8c00", low = "#fff494", na.value = 'white') +
   html_figs_theme_no_legend+theme(axis.title = element_blank())
 
-# # Network representation
-# beta_div_net <- igraph::graph.adjacency(beta_diver_farms, mode = 'undirected', diag = F, weighted = T)
-# E(beta_div_net)$weight
-# V(beta_div_net)$color <- c('blue', 'red', 'red', 'red', 'yellow', 'gray','gray')
-# num_ASV <- ASV_data %>%
-#   group_by(Farm) %>%
-#   summarise(ASV_num=n_distinct(ASV_ID))
-# V(beta_div_net)$num_ASV <- num_ASV$ASV_num 
-# 
-# # pdf('output/figures/beta_div_network.pdf',6,6)
-# pdf('~/Dropbox (BGU)/Apps/Overleaf/Rumen microbiome coocurrence/beta_div_network.pdf', 6, 6)
-# plot(beta_div_net, edge.width=E(beta_div_net)$weight*10, edge.color='black', layout=layout.circle, 
-#      vertex.size=V(beta_div_net)$num_ASV/40+20)
-# dev.off()
-
-# combine the two plots of beta diversity
-# png(filename = 'local_output/figures/beta_diversity_unif_jacc.png', width = 2000, height = 900, res = 300)
 plt_beta_div <- plot_grid(plt_J,plt_U, labels = c('(A)','(B)'))
-
-# dev.off()
 
 ## @knitr END
 
 # Taxonomic analysis ------------------
-ASV_taxa <- read_csv('fixed_data/local_output/ASV_full_taxa.csv') %>% 
+ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>% 
   select(ASV_ID, everything(), -seq16S)
 
 n_distinct(ASV_Core_30$ASV_ID)
@@ -305,8 +282,8 @@ percents_fa <- ASV_Core_30 %>%
 
 #------ run --------------------------------
 # Co-occurrence network for farm scale change the number of the e_id to the wanted experiment----
-e_id <- 12 
-run_summary <- read_csv('fixed_data/HPC/run_summary.csv', 
+e_id <- 16
+run_summary <- read_csv('HPC/run_summary.csv', 
                         col_names = c('exp_id','level','level_name','JOB_ID','data_file','time_stamp')) %>%
   arrange(exp_id,level)
 run_summary %>% filter(exp_id==e_id)
@@ -314,9 +291,8 @@ layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand
                  short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
 
 # Create a multilayer network for 7 farms with intralayer edges ----
-
 farm_multilayer <- NULL
-setwd(paste('fixed_data/HPC/exp_',e_id, sep=''))
+setwd(paste('HPC/exp_',e_id, sep=''))
 lyrs_list <- layers$short_name
 if (e_id>4) { # this is compatible with short farm name (the new ones)
   lyrs_list <- layers$short_name
@@ -372,6 +348,7 @@ farm_multilayer_pos_final %<>%
   group_by(from) %>%
   mutate(num_farms_from=n_distinct(level_name)) %>%
   filter(num_farms_from>=2)
+
 # tree <- readRDS("local_output/rooted_phylo_tree.rds") # only for 5%
 phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
 # a for loop that calculates all the interlayer edges based on unifrac
@@ -430,11 +407,8 @@ ggplot(multilayer_unif, aes(weight, fill=type))+
         axis.title = element_text(size=22, color='black'),
         legend.position = c(0.9,0.9))
 
-## Run Infomap ------------------------------------------------------
-# multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
-# multilayer_jaccard <- read_csv('local_output/multilayer_jaccard.csv')
+## Run Infomap multi-level ------------------------------------------------------
 net <- multilayer_unif[,1:5]
-# net <- multilayer_jaccard[,1:5]
 
 # Run Infomap
 multilayer_for_infomap <- create_multilayer_object(extended = net, nodes = all_nodes, layers = layers)
@@ -443,8 +417,6 @@ m <- run_infomap_multilayer_multilevel(multilayer_for_infomap, two_level = F,
                                        trials = 200, relax = F, seed=NULL)
 
 modules <- m$modules %>% left_join(layers)
-
-
 
 ## Analyze observed modularity results -------------------------------
 # no threshold
@@ -573,8 +545,6 @@ PF_J_obs <-
   group_modify(~calculate_PF_J(.x))
 
 PF_J_obs <- as_tibble(PF_J_obs)
-# write_csv(PF_J_obs, 'local_output/PF_J_pos_20_obs.csv')
-# PF_J_obs <- read_csv('local_output/PF_J_pos_20_obs.csv') # change the number according to the filter level
 
 # Partner Fidelity with UniFrac ---------------------------
 
@@ -583,6 +553,7 @@ PF_J_obs <- as_tibble(PF_J_obs)
 # read tree from phylo data
 # set working directory
 phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
+tree <- phylo_tree$tree
 # tree <- readRDS("local_output/rooted_phylo_tree.rds") # only for 5%
 
 PF_U_obs <-
@@ -593,12 +564,10 @@ names(PF_U_obs) <- c("from", "PF_U", "PF_U_sd", "num_layers","UniFrac_type")
 PF_U_obs %<>% filter(UniFrac_type=='d_UW')
 PF_U_obs$PF_U=1-PF_U_obs$PF_U # Work with similarity instead of dissimilarity
 PF_U_obs <- as_tibble(PF_U_obs)
-# write_csv(PF_U_obs, 'local_output/PF_U_pos_20_obs.csv')
-# PF_U_obs <- read_csv('local_output/PF_U_pos_20_obs.csv')
 
 # Plot Jaccard and UniFrac for paper ------------------------------------------
-PF_J_obs <- read_csv('fixed_data/local_output/PF_J_pos_30_obs.csv') # change the number according to the filter level
-PF_U_obs <- read_csv('fixed_data/local_output/PF_U_pos_30_obs.csv')
+PF_J_obs <- read_csv('local_output/PF_J_pos_30_obs.csv') # change the number according to the filter level
+PF_U_obs <- read_csv('local_output/PF_U_pos_30_obs.csv')
 
 pdf('/Users/Geut/Dropbox/for_processing/rumen/cc_pf_hist.pdf', 5, 6)
 PF_score_plot <- 
@@ -609,9 +578,6 @@ PF_score_plot <-
   ggplot(aes(PF, fill=type)) +
   geom_histogram(alpha=1, color='white')+
   labs(x='Partner fidelity score', y='Count')+
-  # facet_grid(~type)+
-  # geom_vline(xintercept = c(-1.96, 1.96), color = 'red')+
-  # geom_vline(xintercept = c(-2.5, 2.5), color = 'red', linetype='dashed')+
   paper_figs_theme
 PF_score_plot
 dev.off()

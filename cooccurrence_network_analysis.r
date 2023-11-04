@@ -34,26 +34,6 @@ if (e_id>4) { # this is compatible with short farm name (the new ones)
   lyrs_list <- layers$layer_name
 }
 
-# build network layers using old cooccur values  (probability to randomly cooccur) -------
-# build each layer separately first
-setwd(paste('HPC/exp_',e_id, sep=''))
-for (l in lyrs_list){ 
-  print('------------------')
-  print(l)
-  print('------------------')
-  x <- parse_networks(e_id = e_id, Level = 'Farm', Level_name = l)
-  farm_multilayer <- rbind(farm_multilayer,x$edge_list)
-  assign(paste('net_farm',l,sep = '_'), x)
-}
-setwd('../../')
-
-# For the analysis separate the positive and negative networks
-farm_multilayer_pos <- farm_multilayer %>% filter(edge_type=='pos')
-write_csv(farm_multilayer_pos, 'local_output/farm_multilayer_pos_30_old.csv')
-farm_multilayer_neg <- farm_multilayer %>% filter(edge_type=='neg')
-write_csv(farm_multilayer_neg, 'local_output/farm_multilayer_neg_30_old.csv')
-
-
 # Build network based on p value instead of the one used so far ------
 setwd(paste('HPC/exp_',e_id, sep=''))
 for (l in lyrs_list){ 

@@ -102,8 +102,9 @@ for (t in seq(0,0.4,0.05)){
                                          summarise(N_filtered=length(unique(ASV_ID)))) %>% 
                                        mutate(prop_left=N_filtered/N,t=t))
 }
-sensitivity_abundance %>% filter(Farm=='Bian')
-ggplot(sensitivity_abundance, aes(t, prop_left, color=Farm))+geom_line()+geom_point()+theme_bw()+facet_wrap(~Farm)
+
+ggplot(sensitivity_abundance, aes(t, prop_left, color=Farm))+
+  geom_line()+geom_point()+theme_bw()+facet_wrap(~Farm)
 
 
 ## ASV relative abundance in cows ------------------------------------------
@@ -141,7 +142,6 @@ ggplot(sensitivity_rel_abundance, aes(t, prop_left, color=Farm))+
 
 
 ## Core microbes -----------------------------------------------------------
-
 
 # Core microbes are defined as those occurring in a certain proportion of cows
 # within each farm
@@ -182,21 +182,7 @@ for (p in seq(0,0.6,0.05)){
 }
 
 # Note that from the onset, even with p=0, not all microbes occur in all cows, so the starting value for p=0 is not 1.
-png('local_output/figures/Proportion_of_microbes_defined_as_core.png', width = 1100, height = 900, res = 300)
-ggplot(sensitivity_core, aes(p, prop_left, color=Farm))+
-  geom_line()+geom_point()+
-  theme_classic()+
-  facet_wrap(~Farm)+
-  geom_vline(xintercept = c(0.05,0.3), linetype='dashed')+
-  labs(x='% of cows in which microbes occur', y='Proportion of microbes defined as core')+
-  paper_figs_theme_no_legend+
-  theme(panel.grid=element_blank(),
-        axis.text = element_text(size=8, color='black'),
-        axis.title = element_text(size=10, color='black'),
-        strip.background = element_rect(colour = "black", fill = "white")) 
-dev.off()
-
-pdf('~/Dropbox (BGU)/Apps/Overleaf/Rumen microbiome coocurrence/sensitivity_core.pdf', 10, 6)
+pdf(paste(paper_output_path, "sensitivity_core.pdf", sep=""), 10, 6)
 ggplot(sensitivity_core, aes(p, prop_left, color=Farm))+
   geom_line()+
   geom_point()+
@@ -206,9 +192,6 @@ ggplot(sensitivity_core, aes(p, prop_left, color=Farm))+
   labs(x='% of cows in which microbes occur', y='Proportion of microbes defined as core')+
   paper_figs_theme_no_legend
 dev.off()
-
-
-
 
 pdf('local_output/figures/core_microbes_sensitivity_example.pdf', 10, 6)
 sensitivity_core %>% 

@@ -72,7 +72,8 @@ ASV_data_sum_reads[200:201,801:804]
 seq_to_test <- colnames(ASV_data_sum_reads)[3] 
 
 # add E to the Sweden cows that has only S in their name:
-ASV_data_sum_reads$sample <- ifelse(str_starts(ASV_data_sum_reads$sample, 'S'), paste("SE", parse_number(ASV_data_sum_reads$sample)), ASV_data_sum_reads$sample)
+ASV_data_sum_reads$sample <- ifelse(str_starts(ASV_data_sum_reads$sample, 'S'), 
+                                    paste("SE", parse_number(ASV_data_sum_reads$sample)), ASV_data_sum_reads$sample)
 # 135 cows in SWEDEN (should be 100)
 
 # remove the spaces from the cow codes
@@ -116,7 +117,6 @@ cowdata_new <- cowdata %>%
   drop_na()    # Remove all rows with NAs
 colnames(cowdata_new) <- c('Country', 'Farm', 'Cow_Code')  
 n_distinct(cowdata_new$Cow_Code, na.rm = F)  # Check there are no duplicates in Cow Code
-# 100 cows in SWEDEN
 
 # convert the ASV_data_matrix to a long format:
 # first I need to transpose again to be able to join the ASV data with the cow data that has the cow codes
@@ -127,13 +127,6 @@ ASV_data_matrix_trans <- ASV_data_matrix %>%
 ASV_data_matrix_long <- ASV_data_matrix_trans %>% 
   melt(id.vars = "Cow_Code") 
 colnames(ASV_data_matrix_long) <- c("Cow_Code", "ASV_ID", "Abundance")
-
-# join ASV_data_matrix_long with cowdata_new
-# ASV_data_final <- inner_join(cowdata_new, ASV_data_matrix_long, by = "Cow_Code") %>%
-#   filter(Abundance > 0)   # if the microbe does not appear in this cow, the line is irrelevant to us
-# 
-# write_csv(ASV_data_final, "output/ASV_processed_data.csv")
-
 
 # check the cows which are in cowdata_new but not in ASV_data_matrix_long and vice versa
 setdiff(cowdata_new$Cow_Code,ASV_data_matrix_long$Cow_Code)
