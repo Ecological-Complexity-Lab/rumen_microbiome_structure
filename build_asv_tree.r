@@ -2,7 +2,7 @@
 # This script analyses dna sequance of the ASVs to create 
 # a phylogenetic tree, and save it to be used in the future
 
-# takes around 2 days to run
+# takes around 2 days to run on a desktop computer
 #------------------------------------------------------------
 
 #------ includes ------------

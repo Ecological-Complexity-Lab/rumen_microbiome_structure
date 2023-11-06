@@ -35,8 +35,7 @@ richness_per_farm <- ASV_Core %>%
   group_by(Farm) %>%
   summarise(ASV_Richness=n_distinct(ASV_ID)) 
 
-# plt_richness_per_farm <- 
-  richness_per_farm %>%
+richness_per_farm %>%
   arrange(desc(ASV_Richness)) %>% 
   ggplot(aes(Farm,ASV_Richness))+
   geom_col(fill='dark red', color='white')+
@@ -59,8 +58,8 @@ Richness_per_cow_farm <-
             S_max=max(S_cow)) %>% 
   mutate(ASV_summary=paste(S_mean,' [',S_min,'-',S_max,']',sep=''))
 
-# plt_richness_per_cow_farm <- 
-  ASV_Core %>%
+
+ASV_Core %>%
   group_by(Country,Farm,Cow_Code) %>%
   summarise(richness=n_distinct(ASV_ID)) %>%
   arrange(desc(richness)) %>% 
@@ -73,7 +72,7 @@ Richness_per_cow_farm <-
 ## @knitr END
 
 #4 ASV Beta diversity between farms ----------------
- ASV_occurrence_farm <- 
+ASV_occurrence_farm <- 
   ASV_Core %>%
   select(-c(Cow_Code)) %>%
   distinct(Farm, ASV_ID) %>%
@@ -116,11 +115,9 @@ plt_U <-
   scale_y_discrete(limits=rev)+
   scale_fill_gradient(high = "#ff8c00", low = "#fff494", na.value = 'white') +
   html_figs_theme_no_legend+theme(axis.title = element_blank())
+
 # combine the two plots of beta diversity
-# png(filename = 'local_output/figures/beta_diversity_unif_jacc.png', width = 2000, height = 900, res = 300)
-# plt_beta_div <- 
-  plot_grid(plt_J,plt_U, labels = c('(A)','(B)'))
-# dev.off()
+plot_grid(plt_J,plt_U, labels = c('(A)','(B)'))
 
 ## @knitr END
 
@@ -216,10 +213,6 @@ farm_multilayer_pos <- farm_multilayer %>% filter(edge_type=='pos')
 # for CC:
 write_csv(farm_multilayer_pos, 
           paste('local_output/core_range/farm_multilayer_pos_', percent_str,'.csv', sep = ''))
-#farm_multilayer_pos_10 <- farm_multilayer %>% filter(edge_type=='pos')
-#write_csv(farm_multilayer_pos_10, 'local_output/farm_multilayer_pos_10.csv')
-#farm_multilayer_pos_05 <- farm_multilayer %>% filter(edge_type=='pos')
-#write_csv(farm_multilayer_pos_05, 'local_output/farm_multilayer_pos_05.csv')
 
 all_nodes <- sort(unique(c(farm_multilayer_pos$from, farm_multilayer_pos$to)))
 all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
@@ -476,8 +469,6 @@ PF_J_obs <-
   group_modify(~calculate_PF_J(.x))
 
 PF_J_obs <- as_tibble(PF_J_obs)
-# write_csv(PF_J_obs, 'local_output/PF_J_pos_20_obs.csv')
-# PF_J_obs <- read_csv('local_output/PF_J_pos_20_obs.csv') # change the number according to the filter level
 
 # Partner Fidelity with UniFrac ---------------------------
 
@@ -486,6 +477,7 @@ PF_J_obs <- as_tibble(PF_J_obs)
 # read tree from phylo data
 # set working directory
 phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
+tree <- phylo_tree$tree
 # tree <- readRDS("local_output/rooted_phylo_tree.rds") # only for 5%
 
 PF_U_obs <-
@@ -496,8 +488,6 @@ names(PF_U_obs) <- c("from", "PF_U", "PF_U_sd", "num_layers","UniFrac_type")
 PF_U_obs %<>% filter(UniFrac_type=='d_UW')
 PF_U_obs$PF_U=1-PF_U_obs$PF_U # Work with similarity instead of dissimilarity
 PF_U_obs <- as_tibble(PF_U_obs)
-# write_csv(PF_U_obs, 'local_output/PF_U_pos_20_obs.csv')
-# PF_U_obs <- read_csv('local_output/PF_U_pos_20_obs.csv')
 
 # Plot Jaccard and UniFrac for paper ------------------------------------------
 PF_score_plot <- 
@@ -508,12 +498,8 @@ PF_score_plot <-
   ggplot(aes(PF, fill=type)) +
   geom_histogram(alpha=1, color='white')+
   labs(x='Partner fidelity score', y='Count')+
-  # facet_grid(~type)+
-  # geom_vline(xintercept = c(-1.96, 1.96), color = 'red')+
-  # geom_vline(xintercept = c(-2.5, 2.5), color = 'red', linetype='dashed')+
   paper_figs_theme
 PF_score_plot
-dev.off()
 
 
 

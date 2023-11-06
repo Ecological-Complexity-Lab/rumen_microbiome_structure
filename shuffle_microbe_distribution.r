@@ -98,7 +98,7 @@ suffle_cow_microb_vegan(data_file, nsim, output, shuff_method="r00")
 # Vaildate shuffling ------------------------------------------------------
 ASV_data <- read_csv(data_file)
 ASVs_obs <- unique(ASV_data$ASV_ID)
-files <- list.files(path = "local_output/shuffle_30/", pattern = "shuff_farm", full.names = T)
+files <- list.files(path = "local_output/shuffle_farm_r0_30_500/", pattern = "shuff_farm", full.names = T)
 for (f in files){
   f <- files[1]
   x <- suppressMessages(read_csv(f))

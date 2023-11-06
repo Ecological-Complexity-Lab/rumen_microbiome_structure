@@ -1,4 +1,3 @@
-setwd("/Users/dafnaar/GitHub/microbiome_structure_v3")
 library(tidyverse)
 library(magrittr)
 library(reshape2) 
@@ -11,8 +10,8 @@ check_infomap()
 source('functions.R')
 # co-occurrence phylogeny network analysis
 # Genus----
-core_ASV_30 <- read_csv('output/core_ASV_30.csv')
-ASV_full_taxa <- read_csv('output/ASV_full_taxa.csv')
+core_ASV_30 <- read_csv('local_output/core_ASV_30.csv')
+ASV_full_taxa <- read_csv('local_output/ASV_full_taxa.csv')
 ASV_30_genus <- core_ASV_30 %>%
   left_join(ASV_full_taxa) %>%
   select(Farm,Cow_Code,Genus) %>%
@@ -99,13 +98,6 @@ farm_networks_density %>%
   group_by(level_name) %>%
   summarise(network_density=unique(network_density))
 
-physical_nodes <- edge_list_genus_pos %>%
-  group_by(node_id) %>%
-  summarise(Modules=n_distinct(module))
-
-state_nodes <- farm_modules_pos %>%
-  select(node_id,module)
-
 # physical and state nodes
 # bind 'from' and 'to'- to include all nodes:
 edge_list_genus_pos2 <-
@@ -120,7 +112,8 @@ intra_final %>%
 
 # shuffled networks
 # first we need to read the shuffled data:
-farm_shuffled <- list.files(path = "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_farm_curveball_30", pattern = paste('shuff_farm',sep=""), full.names = T)
+farm_shuffled <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra", 
+                            pattern = paste('shuff_farm',sep=""), full.names = T)
 farm_shuffled_f <- sapply(farm_shuffled, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") %>% select(-id) 
 # join between the shuffled data and the taxa data
@@ -383,8 +376,8 @@ genus_centrality_farm_filtered %>%
 dev.off()
 
 # Family----
-core_ASV_30 <- read_csv('output/core_ASV_30.csv')
-ASV_full_taxa <- read_csv('output/ASV_full_taxa.csv')
+core_ASV_30 <- read_csv('local_output/core_ASV_30.csv')
+ASV_full_taxa <- read_csv('local_output/ASV_full_taxa.csv')
 ASV_30_family <- core_ASV_30 %>%
   left_join(ASV_full_taxa) %>%
   select(Farm,Cow_Code,Family) %>%
@@ -485,7 +478,8 @@ intra_final %>%
 
 # shuffled networks- family 
 # first we need to read the shuffled data:
-farm_shuffled <- list.files(path = "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_farm_curveball_30", pattern = paste('shuff_farm',sep=""), full.names = T)
+farm_shuffled <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra", 
+                            pattern = paste('shuff_farm',sep=""), full.names = T)
 farm_shuffled_f <- sapply(farm_shuffled, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") %>% select(-id) 
 # join between the shuffled data and the taxa data

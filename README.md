@@ -4,7 +4,7 @@ this is a reiteration of microbiome_structure_v2 with cleaner folder tree and fi
 This repository is accompanying the paper "Scale-dependent signatures of microbial co-occurrence revealed via multilayer network analysis". 
 The paper is still in review and made available for reviewers examination. It is not yet intended for public access.
 
-# Genetic analysis
+# Cow genetic analysis
 
 when working with FWASS (see methods):
 
@@ -17,14 +17,4 @@ the “—ns” flag converts the output into a format that is compatible with t
 Source:  https://github.com/Greenbaum-Lab/FWASS.git
 
 See https://github.com/Greenbaum-Lab/FWASS for further details.
-
-
-Netstruct Hierarchy:
-
-Code for Nestruct Hierarchy analysis: 
-java -jar NetStruct\_Hierarchy\_v1.1.jar -pro ./OUTPUT\_FOLDER/ -pm ./INPUT\_FILE.txt -pmn ./Nodes\_sample\_sites.txt -pss ./Sample\_sites.txt  
-
-Source: https://github.com/amirubin87/NetStruct\_Hierarchy.git
-
-See https://github.com/amirubin87/NetStruct\_Hierarchy.git for further details.
 

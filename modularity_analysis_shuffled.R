@@ -1,4 +1,4 @@
-setwd("~/GitHub/microbiome_structure_v2")
+# includes -----------
 library(tidyverse)
 library(dplyr)
 library(magrittr)
@@ -7,45 +7,37 @@ library(reshape2)
 library(cowplot)#?
 library(vegan)
 source('functions.R')
-getwd()
+
 # shuffled microbes within farms----
-setwd("/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_farm_curveball_30")
 # read one modularity shuffled network
-farm_modules <- list.files(path = "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_farm_curveball_30/001", pattern = paste('_farm_modules.csv',sep=""), full.names = T)
+farm_modules <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/001", 
+                           pattern = paste('_farm_modules.csv',sep=""), full.names = T)
 farm_modules_f <- sapply(farm_modules, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") %>% select(-id) %>%
   mutate(id='1')
 
 # Folder containing sub-folders
-parent.folder <- "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_farm_curveball_30"
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
 # Sub-folders
 sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
-
-# R script file paths
-#r.scripts <- file.path(sub.folders, "process.R")
-
-# Run scripts in sub-folders 
-#for(script in r.scripts) {
-#  source(script)
-#}
 
 # read all 
 farm_modules_shuffled <- NULL
 for (script in sub.folders) {
   print(script)
-  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules.csv',sep=""), recursive = T,full.names = T)
+  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules_pf_unif.csv',sep=""), recursive = T,full.names = T)
   farm_modules_shuff <- sapply(farm_modules_shuff, read_csv, simplify=FALSE) %>% 
     bind_rows(.id = "id") 
   farm_modules_shuff_f <- farm_modules_shuff %>% 
-    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[9]))
+    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[4]))
   farm_modules_shuffled <- rbind(farm_modules_shuffled,farm_modules_shuff_f)
 }
 
-write_csv(farm_modules_shuffled, 'output/farm_modules_shuffled_100.csv')
+write_csv(farm_modules_shuffled, 'local_output/farm_modules_shuffled_100.csv')
 
 # number of modules in each permutation
-pdf('/Users/dafnaar/GitHub/microbiome_structure_v2/output/figures/modules_per_perm_shuff_within#2.pdf',10,6)
+pdf('local_output/figures/modules_per_perm_shuff_within#2.pdf',10,6)
 farm_modules_shuffled %>%
   group_by(id) %>%
   summarise(module_sum=n_distinct(module)) %>%
@@ -86,10 +78,9 @@ farm_modules_shuffled %>%
   theme(axis.text.x = element_text(size=10, color='black'))+
   theme_bw()
 dev.off()
-getwd()
 
 # comparison between the L value in observed and shuffled
-farm_modulation_summary <- read_csv('farm_modulation_summary.csv', col_names = FALSE)
+farm_modulation_summary <- read_csv('HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/farm_modulation_summary_pf_unif.csv', col_names = FALSE)
 png(filename = 'output/figures/observed_shuffled_L_value_curveball.png', width = 1600, height = 900, res = 300)
 farm_modulation_summary %>% 
   select(L=X4) %>%
@@ -118,36 +109,28 @@ farm_modules_shuffled %>%
 dev.off()
 
 # shuffled microbes between farms----
-setwd("/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_all_30")
 # read one modularity shuffled network
-farm_modules <- list.files(path = "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_all_30/001", pattern = paste('_farm_modules.csv',sep=""), full.names = T)
+farm_modules <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/001", 
+                           pattern = paste('_farm_modules_pf_unif.csv',sep=""), full.names = T)
 farm_modules_f <- sapply(farm_modules, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") %>% select(-id) %>%
   mutate(id='1')
 
 # Folder containing sub-folders
-parent.folder <- "/Users/dafnaar/GitHub/microbiome_structure_v2/HPC/shuffled/shuffle_all_30"
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
 # Sub-folders
 sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
-
-# R script file paths
-#r.scripts <- file.path(sub.folders, "process.R")
-
-# Run scripts in sub-folders 
-#for(script in r.scripts) {
-#  source(script)
-#}
 
 # read all 
 farm_modules_shuffall <- NULL
 for (script in sub.folders) {
   print(script)
-  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules.csv',sep=""), recursive = T,full.names = T)
+  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules_pf_unif.csv',sep=""), recursive = T,full.names = T)
   farm_modules_shuff <- sapply(farm_modules_shuff, read_csv, simplify=FALSE) %>% 
     bind_rows(.id = "id") 
   farm_modules_shuffall_f <- farm_modules_shuff %>% 
-    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[9]))
+    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[4]))
   farm_modules_shuffall <- rbind(farm_modules_shuffall,farm_modules_shuffall_f)
 }
 
@@ -218,13 +201,12 @@ n_distinct(farm_modules_shuffled$module)
 
 # looking at the biggest module----
 # observed
-setwd('/Users/dafnaar/GitHub/microbiome_structure_v2')
-farm_modules_pos <- read_csv('output/farm_modules_pos_03.csv')
+farm_modules_pos <- read_csv('local_output/farm_modules_pos_30_U.csv')
 observed_biggest_module <- farm_modules_pos %>%
   group_by(module) %>%
   mutate(layers_in_modules=n_distinct(layer_name)) %>%
   arrange(desc(layers_in_modules)) %>%
-  filter(layers_in_modules==7) %>%
+  filter(layers_in_modules==max(layers_in_modules)) %>%
   mutate(nodes_in_layers=n_distinct(node_name)) %>%
   arrange(desc(nodes_in_layers)) %>%
   filter(module == 1) %>%
@@ -234,7 +216,7 @@ observed_biggest_module <- farm_modules_pos %>%
   tibble()
 # shuffled within
 shuffled_biggest_module <- farm_modules_shuffled %>%
-  select(-c(node_id,layer_id)) %>%
+  select(-c(node_id,layer_id, flow)) %>%
   group_by(id,module) %>%
   mutate(layers_in_modules=n_distinct(layer_name)) %>%
   arrange(desc(layers_in_modules)) %>%
@@ -316,7 +298,8 @@ farm_modules_shuffled_within <- farm_modules_shuffled %>%
 # combine observed and shuffled
 farm_modules_observed$group <- 'obs'
 farm_modules_shuffled_within$group <- 'shuff within'
-farm_modules_combined <- rbind(farm_modules_observed,farm_modules_shuffled_within)
+farm_modules_combined <- rbind(farm_modules_observed,
+                               farm_modules_shuffled_within %>% select(id, module, node_name, layer_name, group))
   
 # comparison between observed and shuffled within only- percentage in each farm
 farm_modules_filtered <- farm_modules_combined %>%
@@ -372,9 +355,8 @@ mod_layer_size_100 <-
 mod_layer_size_100$rank <- 1:nrow(mod_layer_size_100)
 threshold_rank <- 10
 
-pdf('output/figures/module_size_rank#2.pdf',10,6)
+pdf('local_output/figures/module_size_rank#2.pdf',10,6)
 mod_layer_size_100 %>% 
-  # filter(rank<=12) %>% 
   ggplot(aes(rank,n))+
   geom_point(color='#336BFF', size=3)+geom_line(color='#336BFF', size=2)+
   geom_vline(xintercept = threshold_rank, linetype='dashed')+
@@ -388,11 +370,11 @@ dev.off()
 
 # Put the module rank in the module data table
 farm_modules_shuffled_100 <- farm_modules_shuffled %>%
-  filter(id=='001')
+  filter(id=='100')
 farm_modules_shuffled_100 %<>% left_join(mod_layer_size_100) 
 
 # Modules in farms shuff_100
-png(filename = 'output/figures/modules_in_layers_all_shuff_100_curveball.png', width = 1300, height = 900, res = 300)
+png(filename = 'local_output/figures/modules_in_layers_all_shuff_100_curveball.png', width = 1300, height = 900, res = 300)
 farm_modules_shuffled_100 %>%
   group_by(layer_name) %>%
   mutate(nodes_in_layers=n_distinct(node_id)) %>%
@@ -414,11 +396,6 @@ farm_modules_shuffled_100 %>%
         legend.title = element_text(size=7, color='black'), legend.text = element_text(size=7, color='black'))
 dev.off()
 
-# compare to observed
-png(filename = 'output/figures/modules_in_layers_obs_shuf#2.png', width = 1600, height = 900, res = 300)
-plot_grid(farm_modules_obs,farm_modules_shuf)
-dev.off()
-
 # Filtered by rank size
 pdf('output/figures/modules_in_layers_highly_ranked_100.pdf',10,8)
 farm_modules_shuffled_100 %>%
@@ -426,7 +403,6 @@ farm_modules_shuffled_100 %>%
   summarise(nodes=n_distinct(node_id)) %>%
   filter(rank<=threshold_rank) %>%
   ggplot(aes(x = module, y = layer_name, fill=nodes))+
-  #scale_x_continuous(breaks = seq(1, m$m, 2), limits = c(0,m$m))+
   geom_tile(color='white')+
   scale_fill_viridis_c()+
   labs(x='Module ID', y='Farm', title = 'Modules in layers highly ranked (shuffled 100)')+
@@ -438,7 +414,7 @@ dev.off()
 
 # filter the smallest modules----
 # for the observed network
-farm_modules_pos_03 <- read_csv('output/farm_modules_pos_03.csv')
+farm_modules_pos_03 <- read_csv('local_output/farm_modules_pos_30_U.csv')
 farm_modules_pos_03 %>%
   group_by(module) %>%
   summarise(n=n_distinct(node_id)) %>%
@@ -450,7 +426,7 @@ farm_modules_shuff_filtered <- farm_modules_shuffled %>%
   summarise(n=n_distinct(node_id)) %>%
   filter(n>1) 
 
-png(filename = 'output/figures/observed_shuffled_hist_filter.png', width = 1600, height = 900, res = 300)
+png(filename = 'local_output/figures/observed_shuffled_hist_filter.png', width = 1600, height = 900, res = 300)
 farm_modules_shuff_filtered %>%
   group_by(id) %>%
   summarise(module_sum=n_distinct(module)) %>%
@@ -458,7 +434,7 @@ farm_modules_shuff_filtered %>%
   geom_histogram() +
   theme_bw() +
   geom_vline(aes(xintercept=8), color= 'red') + 
-  geom_text(aes(x=7.6,label='Observed', y=15, angle=90)) +
+  geom_text(aes(x=7.6,label='Observed', y=450, angle=90)) +
   theme(axis.text.x = element_text(size=10, color='black'),
         axis.text.y = element_text(size = 10, color='black'))+
   labs(y='count', title = 'Observed vs Shuffled (filter)')
@@ -476,9 +452,8 @@ mod_layer_size_100 <-
 mod_layer_size_100$rank <- 1:nrow(mod_layer_size_100)
 threshold_rank <- 10
 
-pdf('output/figures/module_size_rank.pdf',10,6)
-mod_layer_size_100 %>% 
-  # filter(rank<=12) %>% 
+pdf('local_output/figures/module_size_rank.pdf',10,6)
+mod_layer_size_100 %>%
   ggplot(aes(rank,n))+
   geom_point(color='#336BFF', size=3)+geom_line(color='#336BFF', size=2)+
   geom_vline(xintercept = threshold_rank, linetype='dashed')+
@@ -496,7 +471,7 @@ farm_modules_shuffled_100 <- farm_modules_shuffled %>%
 farm_modules_shuffled_100 %<>% left_join(mod_layer_size_100) 
 
 # Modules in farms shuff_100
-pdf('output/figures/modules_in_layers_shuffled_within.pdf',10,8)
+pdf('local_output/figures/modules_in_layers_shuffled_within.pdf',10,8)
 farm_modules_shuffled_100 %>%
   group_by(layer_name, module,rank) %>%
   summarise(nodes=n_distinct(node_id)) %>%
@@ -529,12 +504,6 @@ farm_modules_shuffled_100 %>%
 dev.off()
 
 
-
-
-
-
-
-
 # pairwise similarity big module-----
 # observed:
 presence_absence_big_module <- observed_biggest_module %>%
@@ -565,14 +534,14 @@ beta_div_big_module_m %<>%
   unite(farm_pairs,Var1:Var2, sep = '-')
 
 # shuffled within farms:
-shuffled_biggest_module %<>%
+shuffled_biggest_module_sumry <- shuffled_biggest_module %>%
   distinct(id,layer_name, node_name) %>%
   mutate(present=1) %>%
   arrange(id)
 
 # first we create a tibble includes all the farm pairs
 # demo for one id
-one_id_mat <- shuffled_biggest_module %>%
+one_id_mat <- shuffled_biggest_module_sumry %>%
 filter(id=='001') %>%
   spread(node_name, present, fill = 0)  %>%
   select(-id) %>%
@@ -589,9 +558,9 @@ beta_div_big_module_shuffled_m %<>%
 
 # a loop for all ids
 beta_div_big_module_shuffled_final <- NULL
-for (i in unique(shuffled_biggest_module$id)) { 
+for (i in unique(shuffled_biggest_module_sumry$id)) { 
   print(i)
-  presence_absence_big_module_shuffled <- shuffled_biggest_module %>%
+  presence_absence_big_module_shuffled <- shuffled_biggest_module_sumry %>%
     filter(id==i) %>%
     spread(node_name, present, fill = 0)  %>%
     select(-id) %>%
@@ -632,7 +601,7 @@ beta_div_big_module_shuffled_final %>%
 # analysis with shuffled between farms-----
 # combine for biggest module with the between shuffled
 between_shuffled_biggest_module <- farm_modules_shuffall %>%
-  select(-c(node_id,layer_id)) %>%
+  select(-c(node_id,layer_id, flow)) %>%
   group_by(id,module) %>%
   mutate(layers_in_modules=n_distinct(layer_name)) %>%
   arrange(desc(layers_in_modules)) %>%
@@ -661,12 +630,12 @@ farm_modules_observed <- farm_modules_pos %>%
   tibble()
 
 farm_modules_shuffled_within <- farm_modules_shuffled %>%
-  select(-c(node_id,layer_id)) %>%
+  select(-c(node_id, layer_id, flow)) %>%
   transform(module = as.integer(module)) %>%
   tibble()
 
 farm_modules_shuffled_between <- farm_modules_shuffall %>%
-  select(-c(node_id,layer_id)) %>%
+  select(-c(node_id, layer_id, flow)) %>%
   transform(module = as.integer(module)) %>%
   tibble()
 

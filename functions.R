@@ -1,4 +1,8 @@
 
+# Consts ----------------------------------------------------------------
+paper_output_path <- "~/Dropbox (BGU)/Apps/Overleaf/Rumen microbiome coocurrence/"
+
+
 # HPC ---------------------------------------------------------------------
 
 write_to_log <- function(x, exp_id, JOB_ID, level, level_name, append=T){
@@ -79,7 +83,7 @@ parse_networks <- function(e_id, Level, Level_name){
   return(out)
 }
 
-parse_networks_from_cooc <- function(e_id, Level="Farm", Level_name="UK1", sig_lv=0.05, pos_only=TRUE){
+parse_networks_from_cooc <- function(e_id, Level="Farm", Level_name="UK1", pos_only=TRUE){
   JOB_ID <- subset(as.data.frame(run_summary), exp_id==e_id & level==Level & level_name==Level_name)$JOB_ID
   # Get nodes
   nodes <- suppressMessages(read_csv(paste(e_id,JOB_ID,Level,Level_name,"nodes.csv",sep = "_")))
@@ -511,6 +515,7 @@ calculate_PF_U <-  function(x, tree) {
   unincluded <- tree$tip.label[!tree$tip.label %in% included_asvs]
   pruned <- dendextend::prune(tree, unincluded)
   
+  
   mat_format <- x %>%
     group_by(to) %>%
     select(c(to,level_name)) %>%
@@ -524,7 +529,7 @@ calculate_PF_U <-  function(x, tree) {
   n_habitats <- nrow(unifracs)
   
   unifrac_summ <- NULL
-  for (d in c("d_1", "d_UW", "d_VAW", "d_0", "d_0.5")){
+  for (d in c("d_1", "d_UW", "d_0", "d_0.5")){
     d_vals <- unifracs[, , d]
     du_low <- d_vals[lower.tri(d_vals)]
     
