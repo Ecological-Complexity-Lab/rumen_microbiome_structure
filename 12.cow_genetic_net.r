@@ -131,7 +131,7 @@ library(dplyr)
 library(ggstar)
 
 # read data
-res <- read.csv('./cows_genetic_results/genmb_similarity_matrix_weighted.csv', header = TRUE, row.names = 1)
+res <- read.csv('cows_genetic_results/genmb_similarity_matrix_weighted.csv', header = TRUE, row.names = 1)
 phy <- as.dist(1-res) %>% # convert *similarity* matrix to a *distance* object 
   hclust(method = "ward.D2") %>% as.phylo()
 tree <- treeio::as.treedata(phy)

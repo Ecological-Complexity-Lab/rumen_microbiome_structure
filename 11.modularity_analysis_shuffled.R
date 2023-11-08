@@ -9,13 +9,6 @@ library(vegan)
 source('functions.R')
 
 # shuffled microbes within farms----
-# read one modularity shuffled network
-farm_modules <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/001", 
-                           pattern = paste('_farm_modules.csv',sep=""), full.names = T)
-farm_modules_f <- sapply(farm_modules, read_csv, simplify=FALSE) %>%
-  bind_rows(.id = "id") %>% select(-id) %>%
-  mutate(id='1')
-
 # Folder containing sub-folders
 parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
