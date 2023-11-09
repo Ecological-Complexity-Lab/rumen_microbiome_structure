@@ -1,6 +1,8 @@
+#------ exploratory_analysis.r -------------------------------------
 # This script explores the filtered data in broad strokes - 
 # It finds kingdom distribution, quantifies abundance and richness, 
 # and calculates alpha and beta diversity.
+#------------------------------------------------------------
 
 ## @knitr include
 # Includes ------------
@@ -275,189 +277,6 @@ percents_fa <- ASV_Core_30 %>%
   mutate(percnt = 100*ASV_num/sum(ASV_num))
 
 
-#------ network creation -------------------------------
-
-# Co-occurrence networks at farm level are generated
-# on the HPC using the core microbe data set created above.
-
-#------ run --------------------------------
-# Co-occurrence network for farm scale change the number of the e_id to the wanted experiment----
-e_id <- 16
-run_summary <- read_csv('HPC/run_summary.csv', 
-                        col_names = c('exp_id','level','level_name','JOB_ID','data_file','time_stamp')) %>%
-  arrange(exp_id,level)
-run_summary %>% filter(exp_id==e_id)
-layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand','Mink','Raab'),
-                 short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
-
-# Create a multilayer network for 7 farms with intralayer edges ----
-farm_multilayer <- NULL
-setwd(paste('HPC/exp_',e_id, sep=''))
-lyrs_list <- layers$short_name
-if (e_id>4) { # this is compatible with short farm name (the new ones)
-  lyrs_list <- layers$short_name
-} else{ # this is compatible with full farm name (the old ones)
-  lyrs_list <- layers$layer_name
-}
-# build each layer separately first
-for (l in lyrs_list){ 
-  print('------------------')
-  print(l)
-  print('------------------')
-  x <- parse_networks(e_id = e_id, Level = 'Farm', Level_name = l)
-  farm_multilayer <- rbind(farm_multilayer,x$edge_list)
-  assign(paste('net_farm',l,sep = '_'), x)
-}
-setwd('../../')
-
-# For the analysis separate the positive and negative networks
-farm_multilayer_pos <- farm_multilayer %>% filter(edge_type=='pos')
-farm_multilayer_neg <- farm_multilayer %>% filter(edge_type=='neg')
-
-all_nodes <- sort(unique(c(farm_multilayer_pos$from, farm_multilayer_pos$to)))
-all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
-
-intra <- 
-  farm_multilayer_pos %>% 
-  select(layer_from=level_name, node_from=from, layer_to=level_name, node_to=to, weight) %>% 
-  left_join(layers, by = c('layer_from' = 'short_name')) %>% 
-  left_join(layers, by = c('layer_to' = 'short_name')) %>% 
-  left_join(all_nodes, by = c('node_from' = 'node_name')) %>% 
-  left_join(all_nodes, by = c('node_to' = 'node_name')) %>% 
-  select(layer_from=layer_id.x, node_from=node_id.x, layer_to=layer_id.y, node_to=node_id.y, weight)
-
-## Interlayer links with UniFrac -------------------------------------------
-# Because this is an undirected network, not all ASVs are in the from column,
-# which we use for the analysis. So duplicate the links to ensure that all ASVs
-# are in the from column.
-setdiff(farm_multilayer_pos$from,farm_multilayer_pos$to) # These ASVs were missing
-setdiff(farm_multilayer_pos$to,farm_multilayer_pos$from) # These ASVs were missing
-
-farm_multilayer_pos_final <- 
-  bind_rows(farm_multilayer_pos, 
-            farm_multilayer_pos %>%
-              relocate(to, from) %>%
-              rename(to=from, from=to))
-
-n_distinct(farm_multilayer_pos$from)
-n_distinct(farm_multilayer_pos_final$from)
-setdiff(farm_multilayer_pos_final$from,farm_multilayer_pos$to) # These ASVs were missing
-
-# keep only ASVs that occur in 2 or more farms
-farm_multilayer_pos_final %<>%
-  group_by(from) %>%
-  mutate(num_farms_from=n_distinct(level_name)) %>%
-  filter(num_farms_from>=2)
-
-# tree <- readRDS("local_output/rooted_phylo_tree.rds") # only for 5%
-phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
-# a for loop that calculates all the interlayer edges based on unifrac
-inter_PF_U <- NULL
-for (i in unique(farm_multilayer_pos_final$from)) {
-  print(i)
-  ASV_net <- farm_multilayer_pos_final %>%
-    filter(from==i)
-  tree <- phylo_tree$tree
-  # prune the tree
-  included_asvs <- unique(ASV_net$to)
-  unincluded <- tree$tip.label[!tree$tip.label %in% included_asvs]
-  pruned <- dendextend::prune(tree, unincluded)
-  
-  mat_farm_ASV <- 
-    farm_multilayer_pos_final %>%
-    filter(from==i) %>%
-    group_by(to) %>%
-    select(c(to,level_name)) %>%
-    mutate(present=1) %>%
-    spread(to, present, fill = 0) %>%
-    column_to_rownames("level_name")
-  # run unifrec
-  unifracs <- GUniFrac(mat_farm_ASV, pruned, alpha=c(0, 0.5, 1))$unifracs
-  d_UW_ASV_mat <- 1-(unifracs[, , "d_UW"])
-  d_UW_ASV_mat_m <- melt(as.matrix(extRC::tril(d_UW_ASV_mat)))
-  inter_fid_unif <- d_UW_ASV_mat_m %>%
-    tibble() %>%
-    filter(value!=0) %>%
-    subset(Var1 != Var2) %>%
-    mutate(ASV_ID=i) %>%
-    select(c(ASV_ID,layer_from=Var1, layer_to=Var2, weight=value))
-  inter_PF_U <- rbind(inter_PF_U,inter_fid_unif)
-}
-
-inter <- 
-  inter_PF_U %>% 
-  ungroup() %>% 
-  left_join(layers, by = c('layer_from' = 'short_name')) %>% 
-  left_join(layers, by = c('layer_to' = 'short_name')) %>% 
-  left_join(all_nodes, by = c('ASV_ID' = 'node_name')) %>% 
-  select(layer_from=layer_id.x, node_from=node_id, layer_to=layer_id.y, node_to=node_id, weight)
-
-multilayer_unif <- rbind(intra %>% mutate(type='intra'),
-                         inter %>% mutate(type='inter'))
-table(multilayer_unif$type)
-
-#5 Edge weight distributions
-ggplot(multilayer_unif, aes(weight, fill=type))+
-  geom_density(alpha=0.5)+
-  labs(x='Edge weight', y='Density', title='Edge weight distributions')+
-  scale_fill_manual(values = c('blue','orange'))+
-  theme_bw()+
-  theme(panel.grid=element_blank(),
-        axis.text = element_text(size=22, color='black'),
-        axis.title = element_text(size=22, color='black'),
-        legend.position = c(0.9,0.9))
-
-## Run Infomap multi-level ------------------------------------------------------
-net <- multilayer_unif[,1:5]
-
-# Run Infomap
-multilayer_for_infomap <- create_multilayer_object(extended = net, nodes = all_nodes, layers = layers)
-m <- run_infomap_multilayer_multilevel(multilayer_for_infomap, two_level = F, 
-                                       flow_model = 'undirected', silent = F, 
-                                       trials = 200, relax = F, seed=NULL)
-
-modules <- m$modules %>% left_join(layers)
-
-## Analyze observed modularity results -------------------------------
-# no threshold
-modules %>%
-  mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  group_by(short_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level1, nodes_percent) %>% 
-  arrange(level1, short_name) %>%
-  # Only include modules that contain at least 3% of the ASVs in the layer
-  # Plot
-  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
-  geom_tile(color='white')+
-  scale_x_continuous(breaks = seq(1, max(modules$level1), 1))+
-  scale_fill_viridis_c(limits = c(0, 1))+
-  labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
-  paper_figs_theme
-
-# with threshold
-modules %>%
-  mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  group_by(short_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level1, nodes_percent) %>% 
-  arrange(level1, short_name) %>%
-  # Only include modules that contain at least 3% of the ASVs in the layer
-  filter(nodes_percent>=0.03) %>%
-  # Plot
-  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
-  geom_tile(color='white')+
-  scale_x_continuous(breaks = seq(1, max(modules$level1), 1))+
-  scale_fill_viridis_c(limits = c(0, 1))+
-  labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
-  paper_figs_theme
-
 # For paper----
 ## Number of cows in which microbes occur -----------
 ASV_Core_30 %>%
@@ -481,7 +300,10 @@ ASV_Core_30 %>%
   scale_x_continuous(breaks = seq(0,7,1))+
   paper_figs_theme_no_legend
 
+
 # Clustering coefficient---------------------
+farm_multilayer_pos <- read_csv('local_output/farm_multilayer_pos_30.csv')
+
 CC_obs <- 
   farm_multilayer_pos %>%
   group_by(level_name) %>% 
@@ -494,10 +316,6 @@ pdf('/Users/Geut/Dropbox/for_processing/rumen/cc_farm_boxplot.pdf', 5, 5)
 CC_obs %>% 
   filter(k>=10) %>% 
   mutate(level_name=factor(level_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  # ggplot(aes(CC, fill=level_name))+
-  # geom_histogram(color='white', alpha=0.8)+
-  # facet_wrap(~level_name, scales='free_y')+
-  # geom_vline(data=CC_obs_mean, aes(color=level_name, xintercept=CC_mean), size=1)+
   ggplot(aes(x=level_name, y=CC))+
   geom_boxplot()+
   theme_bw() +
