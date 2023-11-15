@@ -9,91 +9,77 @@ library(tidyverse)
 library(magrittr)
 library(vegan)
 library(reshape2)
-source('functions.R')
 
-#------ consts ----------
+# ------ consts ----------
 data_file <- "local_output/core_ASV_30.csv"
 nsim <- 500
 
-#------ run --------------------------------
-# What if bacteria were distributed at random?
-
-# Correlation between the number of times a microbe appears in the data set
-# (=# cows in which a microbe is present) and the # of farms
-ASV_data <- read_csv(data_file)
-
-inner_join(
-  ASV_data %>% group_by(ASV_ID) %>% summarise(n_cows=n_distinct(Cow_Code)),
-  ASV_data %>% group_by(ASV_ID) %>% summarise(n_farms=n_distinct(Farm))
-) %>% ggplot(aes(n_cows, n_farms))+geom_point()
-
-
-inner_join(
-  ASV_data %>% group_by(ASV_ID) %>% summarise(n_cows=n_distinct(Cow_Code)),
-  ASV_data %>% group_by(ASV_ID) %>% summarise(n_countries=n_distinct(Country))
-) %>% ggplot(aes(n_cows, n_countries))+geom_point()
-
-# Expected (random) distribution of microbes in farms when microbes are randomly
-# distributed across cows in all the region
-
-permuted <- NULL
-for (i in 1:500){
-  x <- ASV_data %>% 
-    mutate(ASV_ID_perm=sample(ASV_ID, replace = F)) %>% # Permute
-    group_by(ASV_ID_perm) %>%
-    summarise(habitats=n_distinct(Farm)) %>%
-    arrange(desc(habitats)) %>% 
-    group_by(habitats) %>% 
-    summarise(n=n()) %>% mutate(run=i)
-  permuted <- rbind(permuted, x)
+# ------ functions ----------
+suffle_cow_microb_vegan <- function(data_file_name, nsim=500, output_folder="shuff_vegan_30", shuff_method='curveball'){
+  asv_data <- read_csv(data_file_name)
+  
+  # get layers names
+  farm_names <- asv_data %>% select(Farm) %>% distinct() %>% pull(Farm)
+  
+  layers <- list()
+  # make shuffled matrices -
+  # have to separate to farms in order to not shuffle between them
+  for (frm in farm_names) {
+    lyr <- asv_data %>% filter(Farm==frm)
+    
+    # convert edgelist to matrix
+    lyr_mat <- lyr %>%
+      select(Cow_Code, ASV_ID) %>% add_column(weight=1) %>%
+      dcast(Cow_Code ~ ASV_ID, value.var = "weight", fill = 0) %>%
+      column_to_rownames(var="Cow_Code")
+    
+    # run curveball shuffling
+    null <- vegan::nullmodel(lyr_mat, method = shuff_method)
+    suff <- simulate(null, nsim = nsim, burnin = 5000, seed = 1234)
+    
+    layers[[frm]] <- suff
+  }
+  
+  # make files from shuffled
+  for (i in 1:nsim) {
+    all_farms <- tibble(Country = character(),
+                        Farm = character(),
+                        Cow_Code = character(),
+                        ASV_ID = character(),
+                        Abundance = numeric(),
+                        shuff_id = numeric())
+    # convert multi-mats to "edge lists"
+    for (frm in farm_names) {
+      matt <- layers[[frm]][,,i]
+      # convert
+      edge <- melt(matt) %>% filter(value == 1) %>%
+        select(Cow_Code=Var1, ASV_ID=Var2, Abundance=value) %>%
+        add_column(shuff_id=i) %>%
+        add_column(Farm=frm, .before = 1) %>%
+        add_column(Country=substr(frm, 1, 2), .before = 1)
+      all_farms <- rbind(all_farms, edge)
+    }
+    # save to file
+    write_csv(all_farms, paste(output_folder,'/shuff_farm_',str_pad(i, 3, '0',side='left'),'.csv', sep=''))
+  }
+  
+  write_csv(tibble(e_id=1:nsim, 
+                   data_file=paste('shuff_farm_',str_pad(1:nsim, 3, '0',side='left'),'.csv', sep=''),
+                   Abundance_file=basename(data_file_name)),
+            paste(output_folder,'/experiments.csv', sep=''))
 }
 
-permuted %>% group_by(habitats) %>% summarise(n_mean=mean(n), sd=sd(n)) %>% 
-  ggplot(aes(habitats, n_mean))+
-  geom_col(fill='brown', color='black')+
-  geom_errorbar(aes(xmin=habitats,xmax=habitats, ymin=n_mean-sd, ymax=n_mean+sd), width=0.3)+
-  labs(title='Random distribution of microbes in farms')+
-  scale_x_continuous(breaks = seq(0,7,1))
 
-# Beta-div between farms
-ASV_occurrence_farm <- 
-  ASV_data %>%
-  mutate(ASV_ID_perm=sample(ASV_ID, replace = F)) %>% # Permute
-  select(-c(Cow_Code)) %>%
-  distinct(Farm, ASV_ID_perm) %>%
-  mutate(present=1) %>% 
-  spread(ASV_ID_perm, present, fill = 0) %>%
-  column_to_rownames("Farm")
-dim(ASV_occurrence_farm)
-vegdist(ASV_occurrence_farm, "jaccard")
+# ------ run --------------------------------
+# What if bacteria were distributed at random?
 
 # save distribution shuffling ---------------------------------------------------------------
 
-# This function permutes the microbes between cows WITHIN a farm. Microbes are not
-# shuffled between farms.
-output <- "local_output/shuffle_farm_30"
-shuffle_farm_microbe(data_file, nsim, output)
-
-# This permutes the microbes between cows between farms. Microbes are 
-# shuffled between farms.
-output <- "local_output/shuffle_all_30"
-shuffle_region_microbe(data_file, nsim, output)
-
-# This permutes the microbes between cows between farms. BUT it fixes the degree
-# of the cows as well as the degree of the Microbes. 
-# So no change in species number per cow. and no changes in cows per species.
-output <- "local_output/shuffle_farm_curveball_30"
-suffle_cow_microb_vegan(data_file, nsim, output)
-
-# This permutes the microbes between cows within farms. BUT it fixes only the degree
-# of the cows. So no change in species number per cow.
+# This permutes the microbes between cows within farms. BUT it fixes the degree
+# of the cows. So no change in ASV number per cow.
 output <- "local_output/shuffle_farm_r0_30_500"
 suffle_cow_microb_vegan(data_file, nsim, output, shuff_method="r0")
 
-# This permutes the microbes between cows between farms. it fixes only the fill
-# (the number of occurrences in the matrix.
-output <- "local_output/shuffle_farm_r00_30"
-suffle_cow_microb_vegan(data_file, nsim, output, shuff_method="r00")
 
 # Vaildate shuffling ------------------------------------------------------
 ASV_data <- read_csv(data_file)
