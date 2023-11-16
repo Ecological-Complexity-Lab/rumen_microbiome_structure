@@ -53,6 +53,7 @@ table(microbs$breed)
 # 816      196 
 
 # compare all cows in SNP vs microbiome
+snp <- ambas$ID
 micr <- microbs$ID
 
 length(intersect(snp, micr))
