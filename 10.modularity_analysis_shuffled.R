@@ -141,7 +141,7 @@ observed_biggest_module <- farm_modules_pos %>%
   select(c(id,module, node_name, layer_name=short_name, layers_in_modules, nodes_in_layers)) %>%
   transform(id = as.character(id)) %>%
   tibble()
-# shuffled within
+# shuffled
 shuffled_biggest_module <- farm_modules_shuffled %>%
   select(-c(node_id,layer_id, flow)) %>%
   group_by(id,module) %>%
@@ -191,18 +191,18 @@ farm_modules_observed <- farm_modules_pos %>%
   transform(id = as.character(id)) %>%
   tibble()
 
-farm_modules_shuffled_within <- farm_modules_shuffled %>%
+farm_modules_shuffled <- farm_modules_shuffled %>%
   select(-c(node_id,layer_id)) %>%
   transform(module = as.integer(module)) %>%
   tibble()
 
 # combine observed and shuffled
 farm_modules_observed$group <- 'obs'
-farm_modules_shuffled_within$group <- 'shuff within'
+farm_modules_shuffled$group <- 'shuff'
 farm_modules_combined <- rbind(farm_modules_observed,
-                               farm_modules_shuffled_within %>% select(id, module, node_name, layer_name, group))
+                               farm_modules_shuffled %>% select(id, module, node_name, layer_name, group))
   
-# comparison between observed and shuffled within only- percentage in each farm
+# comparison between observed and shuffled - percentage in each farm
 farm_modules_filtered <- farm_modules_combined %>%
   group_by(group,id,node_name) %>%
   mutate(number_of_farms=n_distinct(layer_name)) %>%
@@ -244,75 +244,6 @@ farm_modules_pos %>%
   mutate(percent = 100 * number_of_nodes_big_m/number_of_nodes) %>%
   distinct(percent)
 
-# filter by rank-----
-# Distribution of module sizes within layers
-mod_layer_size_100 <- 
-  farm_modules_shuffled %>%
-  filter(id=='100') %>%
-  group_by(layer_name,module) %>% 
-  summarise(n=n_distinct(node_id)) %>%
-  arrange(desc(n))
-# A more vivid figure:
-mod_layer_size_100$rank <- 1:nrow(mod_layer_size_100)
-threshold_rank <- 10
-
-pdf('local_output/figures/module_size_rank#2.pdf',10,6)
-mod_layer_size_100 %>% 
-  ggplot(aes(rank,n))+
-  geom_point(color='#336BFF', size=3)+geom_line(color='#336BFF', size=2)+
-  geom_vline(xintercept = threshold_rank, linetype='dashed')+
-  labs(x='Module-layer size rank', y='Module-layer size')+
-  theme_bw()+
-  theme(panel.grid=element_blank(),
-        axis.text = element_text(size=22, color='black'),
-        axis.title = element_text(size=22, color='black'),
-        legend.position = c(0.9,0.9))
-dev.off()
-
-# Put the module rank in the module data table
-farm_modules_shuffled_100 <- farm_modules_shuffled %>%
-  filter(id=='100')
-farm_modules_shuffled_100 %<>% left_join(mod_layer_size_100) 
-
-# Modules in farms shuff_100
-png(filename = 'local_output/figures/modules_in_layers_all_shuff_100_curveball.png', width = 1300, height = 900, res = 300)
-farm_modules_shuffled_100 %>%
-  group_by(layer_name) %>%
-  mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(layer_name,module) %>%
-  mutate(nodes_in_modules=n_distinct(node_id)) %>%
-  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  group_by(layer_name, module,rank,nodes_percent) %>%
-  summarise(nodes=n_distinct(node_id)) %>%
-  ggplot(aes(x = module, y = layer_name, fill=nodes_percent))+
-  scale_x_continuous(breaks = seq(1,16,2))+
-  geom_tile(color='white')+
-  scale_fill_viridis_c()+
-  labs(x='Module ID', y='')+ ggtitle('shuffled Modules')+
-  theme_bw()+
-  #labs(tag = "b") +
-  theme(panel.grid.minor = element_blank(),
-        axis.text = element_text(size=10, color='black'),
-        axis.title = element_text(size=10, color='black'), title = element_text(size = 10, color = 'black'),
-        legend.title = element_text(size=7, color='black'), legend.text = element_text(size=7, color='black'))
-dev.off()
-
-# Filtered by rank size
-pdf('output/figures/modules_in_layers_highly_ranked_100.pdf',10,8)
-farm_modules_shuffled_100 %>%
-  group_by(layer_name, module,rank) %>%
-  summarise(nodes=n_distinct(node_id)) %>%
-  filter(rank<=threshold_rank) %>%
-  ggplot(aes(x = module, y = layer_name, fill=nodes))+
-  geom_tile(color='white')+
-  scale_fill_viridis_c()+
-  labs(x='Module ID', y='Farm', title = 'Modules in layers highly ranked (shuffled 100)')+
-  theme_bw()+
-  theme(panel.grid.minor = element_blank(),
-        axis.text = element_text(size=20, color='black'),
-        axis.title = element_text(size=20, color='black'), title = element_text(size = 20, color = 'black'))
-dev.off()
-
 # filter the smallest modules----
 # for the observed network
 farm_modules_pos_03 <- read_csv('local_output/farm_modules_pos_30_U.csv')
@@ -341,75 +272,6 @@ farm_modules_shuff_filtered %>%
   labs(y='count', title = 'Observed vs Shuffled (filter)')
 dev.off()
 
-# filter by rank-----
-# Distribution of module sizes within layers
-mod_layer_size_100 <- 
-  farm_modules_shuffled %>%
-  filter(id=='001') %>%
-  group_by(layer_name,module) %>% 
-  summarise(n=n_distinct(node_id)) %>%
-  arrange(desc(n))
-# A more vivid figure:
-mod_layer_size_100$rank <- 1:nrow(mod_layer_size_100)
-threshold_rank <- 10
-
-pdf('local_output/figures/module_size_rank.pdf',10,6)
-mod_layer_size_100 %>%
-  ggplot(aes(rank,n))+
-  geom_point(color='#336BFF', size=3)+geom_line(color='#336BFF', size=2)+
-  geom_vline(xintercept = threshold_rank, linetype='dashed')+
-  labs(x='Module-layer size rank', y='Module-layer size')+
-  theme_bw()+
-  theme(panel.grid=element_blank(),
-        axis.text = element_text(size=22, color='black'),
-        axis.title = element_text(size=22, color='black'),
-        legend.position = c(0.9,0.9))
-dev.off()
-
-# Put the module rank in the module data table
-farm_modules_shuffled_100 <- farm_modules_shuffled %>%
-  filter(id=='001')
-farm_modules_shuffled_100 %<>% left_join(mod_layer_size_100) 
-
-# modules in each permutation
-number_of_modules <- farm_modules_shuffled %>%
-  group_by(id) %>%
-  summarise(module_sum=n_distinct(module))
-
-# Modules in farms shuff_100
-pdf('local_output/figures/modules_in_layers_shuffled_within.pdf',10,8)
-farm_modules_shuffled_100 %>%
-  group_by(layer_name, module,rank) %>%
-  summarise(nodes=n_distinct(node_id)) %>%
-  ggplot(aes(x = module, y = layer_name, fill=nodes))+
-  scale_x_continuous(breaks = seq(1, number_of_modules$module_sum[100], 2), limits = c(0,number_of_modules$module_sum[001]))+
-  geom_tile(color='white')+
-  scale_fill_viridis_c()+
-  labs(x='Module ID', y='Farm')+ ggtitle('Modules Shuffled within layers')+
-  theme_bw()+
-  theme(panel.grid.minor = element_blank(),
-        axis.text = element_text(size=20, color='black'),
-        axis.title = element_text(size=20, color='black'), title = element_text(size = 20, color = 'black'))
-dev.off()
-
-# Filtered by rank size
-pdf('output/figures/modules_in_layers_highly_ranked_100.pdf',10,8)
-farm_modules_shuffled_100 %>%
-  group_by(layer_name, module,rank) %>%
-  summarise(nodes=n_distinct(node_id)) %>%
-  filter(rank<=threshold_rank) %>%
-  ggplot(aes(x = module, y = layer_name, fill=nodes))+
-  #scale_x_continuous(breaks = seq(1, m$m, 2), limits = c(0,m$m))+
-  geom_tile(color='white')+
-  scale_fill_viridis_c()+
-  labs(x='Module ID', y='Farm', title = 'Modules in layers highly ranked (shuffled 100)')+
-  theme_bw()+
-  theme(panel.grid.minor = element_blank(),
-        axis.text = element_text(size=20, color='black'),
-        axis.title = element_text(size=20, color='black'), title = element_text(size = 20, color = 'black'))
-dev.off()
-
-
 # pairwise similarity big module-----
 # observed:
 presence_absence_big_module <- observed_biggest_module %>%
@@ -422,7 +284,7 @@ dim(presence_absence_big_module)
 beta_div_big_module <- 1-as.matrix(vegdist(presence_absence_big_module, "jaccard"))
 # Heatmap 
 beta_div_big_module_m <- melt(beta_div_big_module)
-png(filename = 'output/figures/shared_nodes_observed_big_module.png', width = 1600, height = 900, res = 300)
+
 ggplot(beta_div_big_module_m, aes(x = Var1, y = Var2, fill = value, label=round(value,2))) +
   geom_tile() + 
   geom_text()+
@@ -430,7 +292,6 @@ ggplot(beta_div_big_module_m, aes(x = Var1, y = Var2, fill = value, label=round(
   scale_fill_gradient(high = "blue", low = "light blue") +
   labs(x = '',y='', title = 'Shared nodes between farms (big module)')+
   theme(axis.text = element_text(size=14, color='black'), title = element_text(size = 14, color = 'black'))
-dev.off()
 
 beta_div_big_module_m %<>%
   tibble() %>%
@@ -439,29 +300,13 @@ beta_div_big_module_m %<>%
   mutate(id='000') %>%
   unite(farm_pairs,Var1:Var2, sep = '-')
 
-# shuffled within farms:
+# shuffled farms:
 shuffled_biggest_module_sumry <- shuffled_biggest_module %>%
   distinct(id,layer_name, node_name) %>%
   mutate(present=1) %>%
   arrange(id)
 
-# first we create a tibble includes all the farm pairs
-# demo for one id
-one_id_mat <- shuffled_biggest_module_sumry %>%
-filter(id=='001') %>%
-  spread(node_name, present, fill = 0)  %>%
-  select(-id) %>%
-  column_to_rownames('layer_name')
-one_id_mat <- as.matrix(one_id_mat)
-beta_div_big_module_shuffled <- 1-as.matrix(vegdist(one_id_mat, "jaccard"))
-beta_div_big_module_shuffled_m <- melt(beta_div_big_module_shuffled)
-beta_div_big_module_shuffled_m %<>%
-  tibble() %>%
-  filter(value!=1) %>%
-  distinct(value, .keep_all = TRUE) %>%
-  mutate(id='001') %>%
-  unite(farm_pairs,Var1:Var2, sep = '-')
-
+# first we create a tibble includes all the farm pairs:
 # a loop for all ids
 beta_div_big_module_shuffled_final <- NULL
 for (i in unique(shuffled_biggest_module_sumry$id)) { 
@@ -506,22 +351,9 @@ beta_div_big_module_shuffled_final %>%
 
 # analysis with shuffled between farms-----
 # combine for biggest module with the between shuffled
-between_shuffled_biggest_module <- farm_modules_shuffall %>%
-  select(-c(node_id,layer_id, flow)) %>%
-  group_by(id,module) %>%
-  mutate(layers_in_modules=n_distinct(layer_name)) %>%
-  arrange(desc(layers_in_modules)) %>%
-  filter(layers_in_modules==7) %>%
-  mutate(nodes_in_layers=n_distinct(node_name)) %>%
-  arrange(desc(nodes_in_layers)) %>%
-  filter(module == 1) %>%
-  transform(module = as.integer(module)) %>%
-  tibble()
-
 observed_biggest_module$group <- 'obs'
-shuffled_biggest_module$group <- 'shuff within'
-between_shuffled_biggest_module$group <- 'shuff between'
-biggest_module_combined_all <- rbind(observed_biggest_module,shuffled_biggest_module,between_shuffled_biggest_module)
+shuffled_biggest_module$group <- 'shuff'
+biggest_module_combined_all <- rbind(observed_biggest_module,shuffled_biggest_module)
 
 # how many ASVs in each layer
 biggest_module_combined_all %<>%
@@ -535,21 +367,15 @@ farm_modules_observed <- farm_modules_pos %>%
   transform(id = as.character(id)) %>%
   tibble()
 
-farm_modules_shuffled_within <- farm_modules_shuffled %>%
-  select(-c(node_id, layer_id, flow)) %>%
-  transform(module = as.integer(module)) %>%
-  tibble()
-
-farm_modules_shuffled_between <- farm_modules_shuffall %>%
+farm_modules_shuffled_new <- farm_modules_shuffled %>%
   select(-c(node_id, layer_id, flow)) %>%
   transform(module = as.integer(module)) %>%
   tibble()
 
 # combine observed and shuffled
 farm_modules_observed$group <- 'obs'
-farm_modules_shuffled_within$group <- 'shuff within'
-farm_modules_shuffled_between$group <- 'shuff between'
-farm_modules_combined <- rbind(farm_modules_observed,farm_modules_shuffled_within,farm_modules_shuffled_between)
+farm_modules_shuffled_new$group <- 'shuff'
+farm_modules_combined <- rbind(farm_modules_observed,farm_modules_shuffled_new)
 
 # how many ASVs in each layer
 farm_modules_combined_ASVs <- farm_modules_combined %>%
@@ -568,7 +394,7 @@ farm_modules_comb %>%
   theme(axis.text = element_text(size=10, color='black')) 
 
 # how many ASVs that occurr in all 7 farms, are included in the big module 
-# comparison between observed, shuffled within and shuffled between
+# comparison between observed and shuffled
 farm_modules_combined_filtered <- farm_modules_combined %>%
   group_by(group,id,node_name) %>%
   mutate(number_of_farms=n_distinct(layer_name)) %>%
