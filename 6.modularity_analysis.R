@@ -218,7 +218,6 @@ m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
                                             trials = 200, relax = F, seed=123)
 
 
-
 # Write summary to later compare with the shuffled networks
 tibble(net='multilayer_unif', call=m$call, L=m$L, top_modules=m$m,time_stamp=Sys.time()) %>% 
 write_csv('local_output/farm_modules_pos_30_summary.csv', append=T)
@@ -318,72 +317,6 @@ pdf('local_output/figures/SI_modules_heir.pdf',10,6)
 plot_grid(a, b, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1)
 dev.off()
 
-
-# Compared to shuffled networks -------------------------------------------
-# read observed for comparing:
-modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
-mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', 
-                            col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))
-# get the latest run
-mod_summary_obs <- mod_summary_obs[which.max(mod_summary_obs$time_stamp),] 
-num_modules_obs <- mod_summary_obs$top_modules
-L_obs <- mod_summary_obs$L
-
-parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
-
-# General stats
-summ <- read_csv(paste(parent.folder,'/farm_modulation_summary_pf_unif.csv',sep=''), 
-                 col_names = c('e_id','JOB','call','L','num_modules'))
-summ %<>% slice(tail(row_number(), 1000)) %>% filter(str_detect(call, '-2')) # We want only runs with *no* multi-level analysis
-ggplot(summ, aes(L))+
-  geom_histogram()+
-  geom_vline(xintercept = L_obs)
-pvalue <- sum(summ$L<L_obs)/500
-
-ggplot(summ, aes(num_modules))+
-  geom_histogram()+
-  geom_vline(xintercept = num_modules_obs)
-
-# percent of shuffled networks with 1 big module:
-100*sum(summ$num_modules == 1)/nrow(summ)
-
-## Read shuffled files -------------------------------
-
-# Folder containing sub-folders
-# Sub-folders
-sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
-
-# get model nums (because there was NA in the summ for some reason)
-module_nums <- NULL
-
-# read all 
-modules_shuffled <- NULL
-for (s in sub.folders) {
-  print(s)
-  modules_run <- list.files(path = s , pattern = '_farm_modules_pf_unif.csv', recursive = T,full.names = T)
-  modules_run <- fread(modules_run)
-  modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
-  modules_shuffled <- rbind(modules_shuffled,modules_run)
-  module_nums <- rbind(module_nums, data.table(origin=s, modules=max(modules_run$module)))
-}
-modules_shuffled <- as_tibble(modules_shuffled)
-
-# percent of shuffled networks with 1 big module as read from the modules files:
-100* (module_nums$modules == 1)/nrow(module_nums)
-
-
-a2 <- ggplot(summ, aes(L))+
-  geom_histogram()+
-  geom_vline(xintercept = L_obs, linetype = "dashed") + paper_figs_theme
-
-b2 <- ggplot(module_nums, aes(modules))+
-  geom_histogram()+ xlab("Number of modules") +
-  geom_vline(xintercept = num_modules_obs, linetype = "dashed")+ 
-  paper_figs_theme
-
-pdf('local_output/figures/SI_modularity_obs_shuff.pdf',10,6)
-plot_grid(a2, b2, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1, hjust = 0)
-dev.off()
 
 # Draw a multilayer network -----------------------------------------------
 multilayer_unif <- read_csv('local_output/multilayer_unif.csv')

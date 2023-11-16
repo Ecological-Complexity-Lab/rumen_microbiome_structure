@@ -6,90 +6,105 @@ library(igraph)
 library(reshape2)
 library(cowplot)#?
 library(vegan)
+library(data.table)
 source('functions.R')
 
-# shuffled microbes within farms----
-# Folder containing sub-folders
+# Get observed modularity values ----
+# read observed for comparing later:
+modules_obs <- read_csv('local_output/farm_modules_pos_30_U.csv')
+mod_summary_obs <- read_csv('local_output/farm_modules_pos_30_summary.csv', 
+                            col_names = c('net', 'call', 'L', 'top_modules', 'time_stamp'))
+# get the latest run
+mod_summary_obs <- mod_summary_obs[which.max(mod_summary_obs$time_stamp),] 
+num_modules_obs <- mod_summary_obs$top_modules
+L_obs <- mod_summary_obs$L
+
+# read shuffled *summary* for comparing later:
 parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 
+# General stats
+summ <- read_csv(paste(parent.folder,'/farm_modulation_summary_pf_unif.csv',sep=''), 
+                 col_names = c('e_id','JOB','call','L','num_modules'))
+summ %<>% slice(tail(row_number(), 1000)) %>% filter(str_detect(call, '-2')) # We want only runs with *no* multi-level analysis
+ggplot(summ, aes(L))+
+  geom_histogram()+
+  geom_vline(xintercept = L_obs, linetype = "dashed")
+pvalue <- sum(summ$L<L_obs)/500
+
+ggplot(summ, aes(num_modules))+
+  geom_histogram()+
+  geom_vline(xintercept = num_modules_obs, linetype = "dashed")
+
+# percent of shuffled networks with 1 big module:
+100*sum(summ$num_modules == 1)/nrow(summ)
+
+## Read shuffled network themselves -------------------------------
 # Sub-folders
 sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
 
-# read all 
-farm_modules_shuffled <- NULL
-for (script in sub.folders) {
-  print(script)
-  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules_pf_unif.csv',sep=""), recursive = T,full.names = T)
-  farm_modules_shuff <- sapply(farm_modules_shuff, read_csv, simplify=FALSE) %>% 
-    bind_rows(.id = "id") 
-  farm_modules_shuff_f <- farm_modules_shuff %>% 
-    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[4]))
-  farm_modules_shuffled <- rbind(farm_modules_shuffled,farm_modules_shuff_f)
-}
+# get model nums (because there was NA in the summ for some reason)
+module_nums <- NULL
 
-write_csv(farm_modules_shuffled, 'local_output/farm_modules_shuffled_100.csv')
+# read all files 
+modules_shuffled <- NULL
+for (s in sub.folders) {
+  print(s)
+  modules_run <- list.files(path = s , pattern = '_farm_modules_pf_unif.csv', recursive = T,full.names = T)
+  modules_run <- fread(modules_run)
+  modules_run$id <- str_split_fixed(s, pattern = '/', n = 4)[4]
+  modules_shuffled <- rbind(modules_shuffled,modules_run)
+  module_nums <- rbind(module_nums, data.table(origin=s, modules=max(modules_run$module)))
+}
+modules_shuffled <- as_tibble(modules_shuffled)
+
+write_csv(modules_shuffled, 'local_output/farm_modules_shuffled_500.csv')
+
+
+# percent of shuffled networks with 1 big module as read from the modules files:
+100* (module_nums$modules == 1)/nrow(module_nums)
+
+
+a2 <- ggplot(summ, aes(L))+
+  geom_histogram()+
+  geom_vline(xintercept = L_obs, linetype = "dashed", color= 'red') + 
+  paper_figs_theme
+
+b2 <- ggplot(module_nums, aes(modules))+
+  geom_histogram()+ xlab("Number of modules") +
+  geom_vline(xintercept = num_modules_obs, linetype = "dashed", color= 'red') + 
+  paper_figs_theme
+
+pdf('local_output/figures/SI_modularity_obs_shuff.pdf',10,6)
+plot_grid(a2, b2, nrow = 1, ncol = 2, labels = c('(A)','(B)'),vjust = 1.1, hjust = 0)
+dev.off()
+
+
+# explore shuffled networks ----
+farm_modules_shuffled <- read_csv('local_output/farm_modules_shuffled_500.csv')
 
 # number of modules in each permutation
-pdf('local_output/figures/modules_per_perm_shuff_within#2.pdf',10,6)
 farm_modules_shuffled %>%
   group_by(id) %>%
   summarise(module_sum=n_distinct(module)) %>%
   ggplot(aes(id,module_sum)) +
   geom_col() +
   theme_bw() +
-  labs(x='', y='', title='Number of modules in each permutation (shuffled within farms)')+
+  labs(x='', y='', title='Number of modules in each permutation')+
   theme(axis.text.x = element_text(angle = 90, size=6, color='black'))
-dev.off()
-
-number_of_modules <- farm_modules_shuffled %>%
-  group_by(id) %>%
-  summarise(module_sum=n_distinct(module))
-
-# comparison between observed and shuffled
-png(filename = 'output/figures/observed_shuffled_within_hist_curveball.png', width = 1600, height = 900, res = 300)
-number_of_modules %>%
-  ggplot(aes(module_sum)) +
-  geom_histogram(color='white') +
-  theme_bw() +
-  geom_vline(aes(xintercept=11), color= 'red') + 
-  geom_text(aes(x=10.5, label='Observed', y=10, angle=90)) +
-  theme(axis.text = element_text(size=14, color='black'),
-        axis.title = element_text(size = 14, color='black'))+
-  labs(x='Number of modules' ,y='count',title = 'Observed vs Shuffled (within farms)')
-dev.off()
 
 n_distinct(farm_modules_shuffled$module)
 
 # number of layers in modules
-pdf('/Users/dafnaar/GitHub/microbiome_structure_v2/output/figures/farms_in_modules_within_hist#2.pdf',10,6)
 farm_modules_shuffled %>%
   group_by(id, module) %>%
   summarise(number_of_farms=n_distinct(layer_name)) %>%
   ggplot(aes(number_of_farms)) +
   geom_histogram(color='white')+
-  labs(x='Number of farms', title='Number of farms in modules (shuffled within farms)')+
+  labs(x='Number of farms', title='Number of farms in modules')+
   theme(axis.text.x = element_text(size=10, color='black'))+
   theme_bw()
-dev.off()
-
-# comparison between the L value in observed and shuffled
-farm_modulation_summary <- read_csv('HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/farm_modulation_summary_pf_unif.csv', col_names = FALSE)
-png(filename = 'output/figures/observed_shuffled_L_value_curveball.png', width = 1600, height = 900, res = 300)
-farm_modulation_summary %>% 
-  select(L=X4) %>%
-  ggplot(aes(L)) +
-  geom_histogram(color='white') +
-  theme_bw() +
-  geom_vline(aes(xintercept=9.10248), color= 'red') + 
-  #geom_text(aes(x=10.5, label='Observed', y=10, angle=90)) +
-  theme(axis.text = element_text(size=15, color='black'),
-        axis.title = element_text(size = 15, color='black'),
-        title = element_text(size = 15, color='black'))+
-  labs(y='count',title = 'Observed vs Shuffled- L value')
-dev.off()
 
 # nodes in modules
-png(filename = 'output/figures/nodes_in_modules_shuffled_curveball.png', width = 1600, height = 900, res = 300)
 farm_modules_shuffled %>%
   group_by(module) %>%
   summarise(physical_nodes=n_distinct(node_name)) %>%
@@ -99,60 +114,9 @@ farm_modules_shuffled %>%
   theme_bw()+
   labs(x='Number of physical nodes', title='Nodes in modules (shuffled networks)')+
   theme(axis.text = element_text(size=15, color='black'), axis.title = element_text(size=15, color='black'), title = element_text(size = 16))
-dev.off()
-
-# shuffled microbes between farms----
-# read one modularity shuffled network
-farm_modules <- list.files(path = "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/001", 
-                           pattern = paste('_farm_modules_pf_unif.csv',sep=""), full.names = T)
-farm_modules_f <- sapply(farm_modules, read_csv, simplify=FALSE) %>%
-  bind_rows(.id = "id") %>% select(-id) %>%
-  mutate(id='1')
-
-# Folder containing sub-folders
-parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
-
-# Sub-folders
-sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
-
-# read all 
-farm_modules_shuffall <- NULL
-for (script in sub.folders) {
-  print(script)
-  farm_modules_shuff <- list.files(path = script , pattern = paste('_farm_modules_pf_unif.csv',sep=""), recursive = T,full.names = T)
-  farm_modules_shuff <- sapply(farm_modules_shuff, read_csv, simplify=FALSE) %>% 
-    bind_rows(.id = "id") 
-  farm_modules_shuffall_f <- farm_modules_shuff %>% 
-    mutate(id= (str_split_fixed(farm_modules_shuff$id[1], pattern = '/', n = 10)[4]))
-  farm_modules_shuffall <- rbind(farm_modules_shuffall,farm_modules_shuffall_f)
-}
-
-# number of modules in each permutation
-pdf('/Users/dafnaar/GitHub/microbiome_structure_v2/output/figures/modules_per_perm.pdf',10,6)
-farm_modules_shuffall %>%
-  group_by(id) %>%
-  summarise(module_sum=n_distinct(module)) %>%
-  ggplot(aes(id,module_sum)) +
-  geom_col() +
-  labs(x='', y='', title='Number of modules in each permutation')+
-  theme(axis.text.x = element_text(angle = 90, size=6, color='black'))
-dev.off()
-
-# number of layers in modules
-pdf('/Users/dafnaar/GitHub/microbiome_structure_v2/output/figures/farms_in_modules_between_hist.pdf',10,6)
-farm_modules_shuffall %>%
-  group_by(id, module) %>%
-  summarise(number_of_farms=n_distinct(layer_name)) %>%
-  ggplot(aes(number_of_farms)) +
-  geom_histogram(color='white')+
-  labs(x='Number of farms', title='Number of farms in modules (shuffled between farms)')+
-  theme(axis.text.x = element_text(size=10, color='black'))+
-  theme_bw()
-dev.off()
 
 # number of physical nodes in modules
-pdf('output/figures/physical_nodes_modules_between_hist.pdf',10,6)
-farm_modules_shuffall %>%
+farm_modules_shuffled %>%
   group_by(id, module) %>%
   summarise(physical_nodes=n_distinct(node_name)) %>%
   arrange(desc(physical_nodes)) %>%
@@ -161,36 +125,6 @@ farm_modules_shuffall %>%
   theme_bw()+
   labs(x='Number of physical nodes', title='Number of physical nodes in modules (shuffled between)')+
   theme(axis.text = element_text(size=12, color='black'), axis.title = element_text(size=15, color='black'), title = element_text(size = 16))
-dev.off()
-
-# modules in each permutation
-number_of_modules <- farm_modules_shuffall %>%
-  group_by(id) %>%
-  summarise(module_sum=n_distinct(module))
-
-png(filename = 'output/figures/shuffled_all_hist.png', width = 1600, height = 900, res = 300)
-number_of_modules %>%
-  ggplot(aes(module_sum)) +
-  geom_histogram() +
-  theme_bw() +
-  labs(y='count',title = 'Modules in each permutation')
-dev.off()
-
-# comparison between observed and shuffled
-png(filename = 'output/figures/observed_shuffled_all_hist.png', width = 1600, height = 900, res = 300)
-number_of_modules %>%
-  ggplot(aes(module_sum)) +
-  geom_histogram(color='white',binwidth = 9) +
-  theme_bw() +
-  scale_x_continuous(breaks = seq(0,1000,100)) +
-  geom_vline(aes(xintercept=11), color= 'red') + 
-  geom_text(aes(x=100, label='Observed', y=20)) +
-  theme(axis.text.x = element_text(size=10, color='black'),
-        axis.text.y = element_text(size = 10, color='black'))+
-  labs(y='count',title = 'Observed vs Shuffled')
-dev.off()
-
-n_distinct(farm_modules_shuffled$module)
 
 # looking at the biggest module----
 # observed
@@ -231,7 +165,7 @@ obs <- biggest_module_combined %>%
   summarise(n=n_distinct(node_name)) %>% 
   filter(group=='obs')
 
-png(filename = 'output/figures/observed_shuffled_biggest_module_curveball.png', width = 1600, height = 900, res = 300)
+png(filename = 'local_output/figures/observed_shuffled_biggest_module.png', width = 1600, height = 900, res = 300)
 biggest_module_combined %>% 
   group_by(group,id,layer_name) %>% 
   summarise(n=n_distinct(node_name)) %>% 
@@ -242,32 +176,6 @@ biggest_module_combined %>%
   geom_vline(data=obs, aes(xintercept = n), color= 'red')+
   theme(axis.text = element_text(size=8 ,color='black'), axis.title = element_text(size=18 ,color='black'),title = element_text(size=16 ,color='black'))+
   labs(x = 'number of nodes',y='count', title = 'Observed vs Shuffled (large module)')
-dev.off()
-
-# histogram 
-png(filename = 'output/figures/observed_shuffled_biggest_module.png', width = 1600, height = 900, res = 300)
-biggest_module_combined %>%
-  group_by(layer_name,group,id) %>%
-  summarise(number_of_nodes=n_distinct(node_name)) %>%
-  ggplot(aes(number_of_nodes, fill=group)) +
-  geom_histogram(binwidth = 10, position = 'dodge') +
-  theme_bw() +
-  facet_wrap(~layer_name)+
-  labs(x = 'number of nodes',y='count', title = 'Observed vs Shuffled')
-dev.off()
-
-# for each farm 
-png(filename = 'output/figures/observed_shuffled_biggest_module_UK2.png', width = 1600, height = 1500, res = 300)
-shuffled_biggest_module %>%
-  filter(layer_name=="UK1") %>%
-  group_by(group,id) %>%
-  summarise(number_of_nodes=n_distinct(node_name)) %>%
-  ggplot(aes(number_of_nodes)) +
-  geom_histogram(color='white',binwidth = 14, position = 'dodge') +
-  theme_bw() +
-  geom_vline(aes(xintercept=482), color= 'red') +
-  labs(x = 'Number of nodes',y='Count', title = 'Observed vs Shuffled-farm UK2')+
-  theme(axis.text = element_text(size=18 ,color='black'), axis.title = element_text(size=18 ,color='black'),title = element_text(size=18 ,color='black'))
 dev.off()
 
 # intercept
@@ -319,7 +227,7 @@ ASVs_big_module_farm %<>%
   group_by(layer_name,group) %>%
   summarise(percent_mean=mean(percent))
 
-png(filename = 'output/figures/nodes_occur_in_all_farms_curveball.png', width = 1600, height = 900, res = 300)
+png(filename = 'local_output/figures/nodes_occur_in_all_farms.png', width = 1600, height = 900, res = 300)
 ASVs_big_module_farm %>%
   ggplot(aes(x=layer_name, y=percent_mean, fill=group)) +
   geom_bar(stat="identity", position="dodge")+
@@ -462,6 +370,11 @@ dev.off()
 farm_modules_shuffled_100 <- farm_modules_shuffled %>%
   filter(id=='001')
 farm_modules_shuffled_100 %<>% left_join(mod_layer_size_100) 
+
+# modules in each permutation
+number_of_modules <- farm_modules_shuffled %>%
+  group_by(id) %>%
+  summarise(module_sum=n_distinct(module))
 
 # Modules in farms shuff_100
 pdf('local_output/figures/modules_in_layers_shuffled_within.pdf',10,8)
