@@ -2,6 +2,9 @@
 # Used to clean files from a shuffling HPC folder:
 # arguments: 1. -all or -clean
 #            2. <directory_path_to_clean>
+#
+# How to ectivate:
+# Rscript clean_shuf_folder.r [-clean\-all] ./shuffled_folder_name
 # ----------------
 
 # ------ include ----
@@ -9,7 +12,7 @@
 
 # ------ consts ----
 is_nuke_state <- FALSE
-shuff_folder_name <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
+shuff_folder_name <- ""
 
 # files to remove on CLEANING state
 list_of_endings_to_remove <- c("\\.R",
@@ -35,7 +38,7 @@ if (length(args)==0) {
   stop('No arguments were found, cleaning stopped.')
 } else {
   is_nuke_state <- args[1] == "-all" # remove ALL but edge list and log.
-  shuff_folder_name <- args[2] # use this folder for running TODO
+  shuff_folder_name <- args[2] # use this folder for running
   if (!dir.exists(shuff_folder_name)) {
     stop("Directory doesn't exist, cleaning stopped.")
   }
