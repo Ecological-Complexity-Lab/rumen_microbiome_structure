@@ -50,7 +50,7 @@ CC_obs_mean <-
 ## Compare to shuffled networks -------------------------------------------
 
 # Folder from HPC containing the 001-500 sub-folders
-parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/"
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
 
 # read all shuffled networks and join to one object
@@ -215,7 +215,6 @@ for (dir in sub.folders) {
 }
 PF_J_shuff <- as_tibble(PF_J_shuff)
 write_csv(PF_J_shuff, 'local_output/PF_J_pos_30_shuffled_r0.csv')
-
 
 ## START HERE FOR READING ALREADY WRITTEN RESULTS ------------
 
