@@ -328,21 +328,23 @@ write_csv(modules,
 modules %<>% rename(level1=module)
 
 ## Analyze observed modularity results -------------------------------
+modules <- read_csv(paste('local_output/core_range/multilayer_modules_', percent_str,'.csv', sep = ''))
+
 # no threshold
 modules %>%
   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(short_name) %>%
   mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
+  group_by(short_name,module) %>%
   mutate(nodes_in_modules=n_distinct(node_id)) %>%
   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level1, nodes_percent) %>% 
-  arrange(level1, short_name) %>%
+  distinct(short_name, module, nodes_percent) %>% 
+  arrange(module, short_name) %>%
   # Only include modules that contain at least 3% of the ASVs in the layer
   # Plot
-  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
+  ggplot(aes(x = module, y = short_name, fill=nodes_percent))+
   geom_tile(color='white')+
-  scale_x_continuous(breaks = seq(1, max(modules$level1), 1))+
+  scale_x_continuous(breaks = seq(1, max(modules$module), 1))+
   scale_fill_viridis_c(limits = c(0, 1))+
   labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
   paper_figs_theme
@@ -352,17 +354,17 @@ modules %>%
   mutate(short_name=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(short_name) %>%
   mutate(nodes_in_layers=n_distinct(node_id)) %>%
-  group_by(short_name,level1) %>%
+  group_by(short_name,module) %>%
   mutate(nodes_in_modules=n_distinct(node_id)) %>%
   mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
-  distinct(short_name, level1, nodes_percent) %>% 
-  arrange(level1, short_name) %>%
+  distinct(short_name, module, nodes_percent) %>% 
+  arrange(module, short_name) %>%
   # Only include modules that contain at least 3% of the ASVs in the layer
   filter(nodes_percent>=0.03) %>%
   # Plot
-  ggplot(aes(x = level1, y = short_name, fill=nodes_percent))+
+  ggplot(aes(x = module, y = short_name, fill=nodes_percent))+
   geom_tile(color='white')+
-  scale_x_continuous(breaks = seq(1, max(modules$level1), 1))+
+  scale_x_continuous(breaks = seq(1, max(modules$module), 1))+
   scale_fill_viridis_c(limits = c(0, 1))+
   labs(x='Module ID', y='')+ ggtitle('Observed Modules')+
   paper_figs_theme
@@ -384,10 +386,6 @@ CC_obs <-
 CC_obs %>% 
   filter(k>=10) %>% 
   mutate(level_name=factor(level_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
-  # ggplot(aes(CC, fill=level_name))+
-  # geom_histogram(color='white', alpha=0.8)+
-  # facet_wrap(~level_name, scales='free_y')+
-  # geom_vline(data=CC_obs_mean, aes(color=level_name, xintercept=CC_mean), size=1)+
   ggplot(aes(x=level_name, y=CC))+
   geom_boxplot()+
   theme_bw() +
