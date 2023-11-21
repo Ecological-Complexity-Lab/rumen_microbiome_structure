@@ -3,7 +3,7 @@ This repository contains the code and data for the paper: "Scale-dependent signa
 
 
 # :page_facing_up: Paper and citing
-Galai G, Arbel D, Klass K, Grinshpan I, Mizrahi I, Pilosof S. **Scale-dependent signatures of microbial co-occurrence revealed via multilayer network analysis**. TBD. 2023. [DOI:10.32942/X2161C](https://doi.org/10.32942/X2161C).
+Galai G, Arbel D, Klass K, Grinshpan I, Mizrahi I, Pilosof S. **Scale-dependent signatures of microbial co-occurrence revealed via multilayer network analysis**. EcoEvoRxiv (preprint) 2023. [DOI:10.32942/X2161C](https://doi.org/10.32942/X2161C).
 
 
 # Abstract:
