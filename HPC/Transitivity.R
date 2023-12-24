@@ -1,7 +1,12 @@
+#! /gpfs0/shai/projects/R4/R-4.0.3/bin/Rscript
 # ------ Transitivity ----------------------------------------
 # This script calculated the probability based Transitivity in a single layer
 # they will later be moved to more logically relevant places in the repo
 #-----------------------------------------------------------------------
+.libPaths("/gpfs0/shai/projects/R4/R-4.0.3/lib64/R/library")
+print(.libPaths())
+print(sessionInfo())
+
 
 #------ includes ----------
 library(tidyverse)
