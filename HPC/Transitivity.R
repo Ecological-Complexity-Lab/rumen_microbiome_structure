@@ -85,16 +85,8 @@ count_comon_cows <- function(ASV_1, ASV_2, ASV_3, asv_data){
 
 #------ run ------------
 ## Read data to be used -----
-# read ASV and cow data
-ASV_data_final <- read_csv("ASV_processed_data_fixed.csv")
-ASV_data_final %<>% 
-  mutate(Farm=replace(Farm, Farm=='NUDC', 'UK1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Park', 'UK2')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Bianchini', 'IT1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Franciosi', 'IT2')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Gandolfi', 'IT3')) %>%
-  mutate(Farm=replace(Farm, Farm=='MinkiÃ¶', 'FI1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='RÃ¶bÃ¤cksdalen', 'SE1'))
+# read asv data
+ASV_data_final <- read_csv("core_ASV_30.csv")
 
 ### combo probabilities ----
 probabilities <- read_csv(single_prob_file)

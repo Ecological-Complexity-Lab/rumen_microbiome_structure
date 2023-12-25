@@ -76,20 +76,9 @@ all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
 layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand','Mink','Raab'),
                  short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
 
-# read cow data
-ASV_data_final <- read_csv("local_output/ASV_processed_data.csv")
-ASV_data_final %>% group_by(Country,Farm) %>% summarise(cows=n_distinct(Cow_Code))
-ASV_data_final %>% group_by(Country,Farm) %>% summarise(ASVs=n_distinct(ASV_ID))
 
-# Match farm names to those in the original paper
-ASV_data_final %<>% 
-  mutate(Farm=replace(Farm, Farm=='NUDC', 'UK1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Park', 'UK2')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Bianchini', 'IT1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Franciosi', 'IT2')) %>% 
-  mutate(Farm=replace(Farm, Farm=='Gandolfi', 'IT3')) %>%
-  mutate(Farm=replace(Farm, Farm=='MinkiÃ¶', 'FI1')) %>% 
-  mutate(Farm=replace(Farm, Farm=='RÃ¶bÃ¤cksdalen', 'SE1'))
+# read asv data
+ASV_data_final <- read_csv("local_output/core_ASV_30.csv")
 
 ## Transitivity ---------
 
