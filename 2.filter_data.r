@@ -254,3 +254,6 @@ filter_data(0.2)
 # core microbes in 10% of cows
 filter_data(0.1)
 
+# core microbes in 80% of cows
+filter_data(0.8)
+

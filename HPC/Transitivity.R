@@ -24,8 +24,9 @@ if (length(commandArgs(trailingOnly=TRUE))==0) {
 }
 
 #------ consts ---------
-single_prob_file <- 'single_asv_occur_prob.csv'
-combo_prob_file <- 'combo_asv_occur_prob.csv'
+asv_data_file    <- 'core_ASV_80.csv'
+single_prob_file <- 'single_asv_occur_prob_80.csv'
+combo_prob_file  <- 'combo_asv_occur_prob.csv'
 output_file <- paste(layer, combo_prob_file, sep = "_")
 
 #------ functions ---------
@@ -86,7 +87,7 @@ count_comon_cows <- function(ASV_1, ASV_2, ASV_3, asv_data){
 #------ run ------------
 ## Read data to be used -----
 # read asv data
-ASV_data_final <- read_csv("core_ASV_30.csv")
+ASV_data_final <- read_csv(asv_data_file)
 
 ### combo probabilities ----
 probabilities <- read_csv(single_prob_file)
