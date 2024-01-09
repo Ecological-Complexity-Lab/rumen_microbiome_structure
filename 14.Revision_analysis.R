@@ -40,12 +40,9 @@ ASV_data_30 <- read_csv("local_output/core_ASV_30.csv")
 parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
 files <- list.files(path = parent.folder , pattern = '_multilayer_pf_unif.csv', recursive = T,full.names = T)
 
-# add column for counting shuffled networks with empiric link
-with_comp <- intras %>% add_column(count=0)
-
-# read all files 
+# read all shuffled networks, and saving as full names
 net_shuffled <- NULL
-for (s in files[1:2]) {
+for (s in files) {
   print(s)
   folder <- dirname(s)
   node_file <- list.files(path = folder , pattern = '_farm_modules_pf_unif.csv', recursive = T,full.names = T)
@@ -61,29 +58,28 @@ for (s in files[1:2]) {
     left_join(nodes, by=c("node_to"="node_id"))   %>% rename(to=node_name) %>%
     select(id, farm=layer_name, from, to)
   
-  # add 1 to links that appear in the empiric network
-  for (r in 1:nrow(with_comp)) {
-    row1 <- shuf_net %>% filter(farm == with_comp[r, "layer"],
-                                from == with_comp[r, "node_from"],
-                                to   == with_comp[r, "node_to"])
-    # need to check both because its not directed and random
-    row2 <- shuf_net %>% filter(farm == with_comp[r, "layer"],
-                                from == with_comp[r, "node_to"],
-                                to   == with_comp[r, "node_from"])
-    
-    if (nrow(row1)==1 || nrow(row2)==1) {
-      with_comp[r, "count"] <- with_comp[r, "count"] + 1
-    }
-    
-    # TODO Test this to see if its working well
-    #      also try to fix deprecation warning 
-  }
-  
   net_shuffled <- rbind(net_shuffled, shuf_net)
 }
+
 net_shuffled <- as_tibble(net_shuffled)
 write_csv(net_shuffled, 'local_output/all_shuff_networks_r0_30_500_jac_intra.csv')
 
+
+# add column for counting shuffled networks with empiric link
+with_comp <- intras %>% add_column(count=0)
+
+# count links that appear in the empiric network
+for (r in 1:nrow(with_comp)) {
+  row1 <- shuf_net %>% filter(farm == pull(with_comp[r, "layer"]),
+                              from == pull(with_comp[r, "node_from"]),
+                              to == pull(with_comp[r, "node_to"]))
+  # need to check both because its not directed and random
+  row2 <- shuf_net %>% filter(farm == pull(with_comp[r, "layer"]),
+                              from == pull(with_comp[r, "node_to"]),
+                              to == pull(with_comp[r, "node_from"]))
+  # record number of times they appear in shuffled network
+  with_comp[r, "count"] <- nrow(row1) + nrow(row2) # number of times the link appeared across the networks
+}
 
 # calculate p value for each link
 with_comp %<>% mutate(p_val=count/length(files))
