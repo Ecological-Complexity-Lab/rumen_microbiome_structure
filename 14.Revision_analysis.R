@@ -8,6 +8,7 @@ library(tidyverse)
 library(magrittr)
 library(reshape2)
 library(data.table)
+library(sbm)
 
 #------ consts ---------
 single_prob_file <- 'local_output/single_asv_occur_prob_80.csv'
@@ -16,7 +17,7 @@ combo_prob_file <- 'combo_asv_occur_prob.csv'
 #------ run ------------
 ## Read data to be used -----
 # read network:
-farm_multilayer_pos_30 <-read_csv('local_output/farm_multilayer_pos_30.csv')
+farm_multilayer_pos_30 <- read_csv('local_output/farm_multilayer_pos_30.csv')
 all_nodes <- sort(unique(c(farm_multilayer_pos_30$from, farm_multilayer_pos_30$to)))
 all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
 layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand','Mink','Raab'),
@@ -32,9 +33,8 @@ ASV_data_30 <- read_csv("local_output/core_ASV_30.csv")
 
 # ------ Cow level: ---------
 ## link vs shuffled -----
-# TODO implement
 # Compare link from empiric to all in 500 shuffled, 
-# to see if they exist in less then 5% so they are significant
+# to see if they exist in less then 5% of 500 shuffled networks so they are significant
 
 # read shuffled networks
 parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
@@ -62,37 +62,33 @@ for (s in files) {
 }
 
 net_shuffled <- as_tibble(net_shuffled)
+# this is used in the HPC analysis
 write_csv(net_shuffled, 'local_output/all_shuff_networks_r0_30_500_jac_intra.csv')
 
+# --- HPC side step 
 
-# add column for counting shuffled networks with empiric link
-with_comp <- intras %>% add_column(count=0)
-
-# count links that appear in the empiric network
-for (r in 1:nrow(with_comp)) {
-  row1 <- shuf_net %>% filter(farm == pull(with_comp[r, "layer"]),
-                              from == pull(with_comp[r, "node_from"]),
-                              to == pull(with_comp[r, "node_to"]))
-  # need to check both because its not directed and random
-  row2 <- shuf_net %>% filter(farm == pull(with_comp[r, "layer"]),
-                              from == pull(with_comp[r, "node_to"]),
-                              to == pull(with_comp[r, "node_from"]))
-  # record number of times they appear in shuffled network
-  with_comp[r, "count"] <- nrow(row1) + nrow(row2) # number of times the link appeared across the networks
+# read validation results produced on the HPC
+all_ <- NULL
+for (l in layers$short_name) {
+  if (l=="UK1"){ # temp - this one takes too long and i want to check the results
+    next
+  }
+  s <- paste('HPC/temp/', l,'_link_validation_r0_50_500.csv', sep = "")
+  res <- fread(s)
+  
+  all_ <- rbind(all_, res)
+  
+  print(sum(res$p_val <0.05))
 }
 
-# calculate p value for each link
-with_comp %<>% mutate(p_val=count/length(files))
-
-# show
-hist(with_comp$p_val)
-
-# Save link validations
-write_csv(with_comp, 'local_output/link_validation_r0_50_500.csv')
+# plot the layers
+all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
+  geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity')
 
 
 # ------ Farm level: ---------
 ## SBM on layer -----
+
 # TODO implement - also compare SBM to shuffled counterpart layer to have the histogram
 
 ## network embedding -----
