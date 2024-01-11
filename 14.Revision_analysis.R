@@ -70,10 +70,7 @@ write_csv(net_shuffled, 'local_output/all_shuff_networks_r0_30_500_jac_intra.csv
 # read validation results produced on the HPC
 all_ <- NULL
 for (l in layers$short_name) {
-  if (l=="UK1"){ # temp - this one takes too long and i want to check the results
-    next
-  }
-  s <- paste('HPC/temp/', l,'_link_validation_r0_50_500.csv', sep = "")
+  s <- paste('HPC/validate_link/', l,'_link_validation_r0_50_500.csv', sep = "")
   res <- fread(s)
   
   all_ <- rbind(all_, res)
