@@ -8,7 +8,8 @@ library(tidyverse)
 library(magrittr)
 library(reshape2)
 library(data.table)
-library(sbm)
+library(igraph)
+library(blockmodels)
 
 #------ consts ---------
 single_prob_file <- 'local_output/single_asv_occur_prob_80.csv'
@@ -85,15 +86,47 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
 
 # ------ Farm level: ---------
 ## SBM on layer -----
+# find group number per layer in empiric network
+gps <- NULL
+for (l in layers$short_name) {
+  print(l)
+  lay <- intras %>% filter(layer == l)
+  
+  g <- graph.data.frame(lay[,2:4])
+  adj <- get.adjacency(g,sparse=FALSE, attr='weight')
 
-# TODO implement - also compare SBM to shuffled counterpart layer to have the histogram
+  sbm_model <- BM_bernoulli$new("SBM", adj)
+  sbm_model$estimate()
+  max_group <- which.max(sbm_model$ICL)
+  
+  gps <- c(gps, max_group)
+}
+groups <- layers %>% select(short_name) %>% add_column(emp_max_ICL=gps)
+
+write_csv(groups, "local_output/layer_SBM_results.csv")
+
+# --- shuffled data from the HPC
+
+# process results from HPC
+res_file <- read_csv(gps, "HPC/shuffled/sbm_analysis/shuff_layer_SBM_results.csv")
+
+# read empiric data
+emp <- read_csv("local_output/layer_SBM_results.csv") %>% add_column(id="000") %>%
+              select(id, farm=short_name, max_ICL=emp_max_ICL)
+
+all_groups <- rbind(emp, res_file %>% rename(max_ICL=shuf_max_ICL))
+
+all_groups %>% ggplot(aes(x=max_ICL, fill = as.factor(farm))) +
+  geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity')
+
+
 
 ## network embedding -----
 # TODO to compare a layer to shuffled in another analysis, in a different scale
 
 # ------ Interfarm level: ---------
 
-# taxonomic beta-diversity ------ 
+## taxonomic beta-diversity ------ 
 # or phylogeny partner fidelity
 # read phylogenetic data
 ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>% 
@@ -167,21 +200,22 @@ fidelity_shuff <- both %>%
 unique(bind_rows(ord, otherway)$Order_from)
 
 
-# NMI between farms ----
+## NMI between farms ----
 # TODO implement - between sbm results
 
 
-# modularity - phylogenetic composition --------
+## modularity - phylogenetic composition --------
 # includes randomality check
 # TODO implement
 
 
-# NMI of clusters and hypothesis ---------
+## NMI of clusters and hypothesis ---------
 # TODO implement
 
 
 
 # --- not sure will be done ----
+
 ## Transitivity ---------
 
 ### single probabilities ----
