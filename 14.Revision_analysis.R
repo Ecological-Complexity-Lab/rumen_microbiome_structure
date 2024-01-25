@@ -120,9 +120,25 @@ all_groups %>% ggplot(aes(x=max_ICL, fill = as.factor(farm))) +
   geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity')
 
 
-
 ## network embedding -----
-# TODO to compare a layer to shuffled in another analysis, in a different scale
+# Process results from HPC run:
+# read embedding data that was ran on the HPC
+mean_embd <- read_csv("HPC/shuffled/embed_network/mean_shuff_net_embeding.csv")
+med_embd <- read_csv("HPC/shuffled/embed_network/median_shuff_net_embeding.csv")
+
+# Plot mean embedding data
+ggplot(mean_embd, aes(mean_embd, yy, color = farm)) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("Mean Graph Embeddings")
+
+# Plot mean embedding data
+ggplot(med_embd, aes(xx, yy, color = farm)) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("Median Graph Embeddings")
+
+
 
 # ------ Interfarm level: ---------
 
