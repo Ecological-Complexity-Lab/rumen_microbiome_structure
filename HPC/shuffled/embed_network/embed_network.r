@@ -28,10 +28,10 @@ if (length(commandArgs(trailingOnly=TRUE))==0) {
 files <- list.files(path = input_folder , pattern = '_edge_list.csv', recursive = T,full.names = T)
 
 teb_all <- NULL
-for (l in files[1:2]) {
+for (l in files) {
   print(l)
   l_net <- read_csv(l) %>% filter(edge_type=="pos")
-  farm <- pull(l_net[1, "level_name"])
+  fa <- pull(l_net[1, "level_name"])
   id <- str_split(basename(l), "_")[[1]][1]
   
   node2vec_model <- node2vecR(as.data.frame(l_net[,1:3]), walk_length = 10)
@@ -39,18 +39,16 @@ for (l in files[1:2]) {
   # Perform t-SNE for 2D visualization
   tsne_res <- Rtsne(node2vec_model, dims = 2)$Y
   
-  teb <- data.frame(tsne_res) %>% select(x=1, y=2) %>% add_column(farm=l)
+  teb <- data.frame(tsne_res) %>% select(x=1, y=2) %>% add_column(farm=fa)
   teb_all <- rbind(teb_all, teb)
 }
 
+avrg <- teb_all %>% group_by(farm) %>% summarise(xx=mean(x), yy=mean(y)) %>%
+          add_column(run=id, .before = 1)
+med <- teb_all %>% group_by(farm) %>% summarise(xx=median(x), yy=median(y)) %>%
+          add_column(run=id, .before = 1)
+
 # save sbm results
 write_csv(teb_all, paste("results/", id, "_shuff_net_embeding.csv", sep = ""))
-
-avrg <- teb_all %>% group_by(farm) %>% summarise(xx=mean(x), yy=mean(y)) %>%
-          add_column(run=id)
-med <- teb_all %>% group_by(farm) %>% summarise(xx=median(x), yy=median(y)) %>%
-  add_column(run=id)
-
 write_csv(avrg, "mean_shuff_net_embeding.csv", append = T)
 write_csv(med, "median_shuff_net_embeding.csv", append = T)
-
