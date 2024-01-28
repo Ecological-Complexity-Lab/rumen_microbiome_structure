@@ -89,7 +89,7 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
 # find group number per layer in empiric network
 gps <- NULL
 mems_table <- NULL
-for (l in layers$short_name[1:2]) {
+for (l in layers$short_name) {
   print(l)
   lay <- intras %>% filter(layer == l)
   
