@@ -88,22 +88,37 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
 ## SBM on layer -----
 # find group number per layer in empiric network
 gps <- NULL
-for (l in layers$short_name) {
+mems_table <- NULL
+for (l in layers$short_name[1:2]) {
   print(l)
   lay <- intras %>% filter(layer == l)
   
   g <- graph.data.frame(lay[,2:4])
   adj <- get.adjacency(g,sparse=FALSE, attr='weight')
-
+  
   sbm_model <- BM_bernoulli$new("SBM", adj)
   sbm_model$estimate()
   max_group <- which.max(sbm_model$ICL)
+  mem <- sbm_model$memberships[[max_group]]$Z
   
+  nds <- row.names(adj)
+  row.names(mem) <- nds
+
+  # membership documenting - find grouping
+  grp_mem <- apply(mem, 1, function(x) match(max(x), x)) # this will take the first group with the max value as the node's group.
+  mems_tbl <- tibble(farm=l, asv_id=nds, membership=grp_mem)
+
   gps <- c(gps, max_group)
+  mems_table <- rbind(mems_table, mems_tbl)
 }
 groups <- layers %>% select(short_name) %>% add_column(emp_max_ICL=gps)
 
 write_csv(groups, "local_output/layer_SBM_results.csv")
+write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
+
+groups <- read_csv("local_output/layer_SBM_results.csv")
+mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+
 
 # --- shuffled data from the HPC
 
