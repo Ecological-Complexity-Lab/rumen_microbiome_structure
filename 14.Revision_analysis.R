@@ -10,6 +10,7 @@ library(reshape2)
 library(data.table)
 library(igraph)
 library(blockmodels)
+library(vegan)
 
 #------ consts ---------
 single_prob_file <- 'local_output/single_asv_occur_prob_80.csv'
@@ -159,76 +160,56 @@ ggplot(med_embd, aes(xx, yy, color = farm)) +
 
 ## taxonomic beta-diversity ------ 
 # or phylogeny partner fidelity
+
 # read phylogenetic data
 ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>% 
   select(ASV_ID, everything(), -seq16S)
 
+# filter only taxa that exist in the networks
+asvs <- sort(unique(c(intras$node_from, intras$node_to)))
+all_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
 
-# for every layer, get the the phylogenetic groups in it, for every level
-for (l in layers$short_name) {
-  # filter out the layer
-  layer_asv <- ASV_data_30 %>% filter(Farm == l)
-  layer_net <- intras %>% filter(layer == l)
+get_taxa_pf <- function(taxa_level="Order") {
+  print(sum(is.na(all_taxa[,taxa_level]))) #FYI
   
-  # add treatment of a single layer here
+  # Handle order taxa 
+  ord <- intras %>% 
+    left_join(all_taxa, by = c('node_from' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from = all_of(taxa_level)) %>%
+    left_join(all_taxa, by = c('node_to' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from, taxa_to = all_of(taxa_level))
+  
+  # get the number of connections between each taxa pair in a layer
+  taxa_pairs <- ord %>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = n()) %>% drop_na() # we remove lined with unknown taxas
+  otherway <- taxa_pairs %>% 
+    rename(taxa_to=taxa_from, taxa_from=taxa_to)
+  both <- bind_rows(taxa_pairs, otherway)
+  
+  # make it unique
+  both %<>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = sum(count))
+  
+  # keep only taxas that occur in 2 or more farms
+  both %<>%
+    group_by(taxa_from) %>%
+    mutate(num_farms_from=n_distinct(layer)) %>%
+    filter(num_farms_from>=2)
+  
+  ## PF_T observed network:
+  PF_T_obs <-
+    both %>%
+    group_by(taxa_from) %>%
+    group_modify(~calculate_PF_T(.x)) %>% as_tibble()
+  
+  return(PF_T_obs)
 }
 
-# start with one layer:
-l <- "SE1"
 
-#layer_asv <- ASV_data_30 %>% filter(Farm == layer)
-layer_net <- intras %>% filter(layer == layerr)
-asvs <- sort(unique(c(layer_net$node_from, layer_net$node_to)))
-
-# filter taxa by layer
-layer_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
-
-sum(is.na(layer_taxa$Order))
-
-# Handle order taxa 
-ord <- layer_net %>% 
-  left_join(layer_taxa, by = c('node_from' = 'ASV_ID')) %>%
-  select(layer, node_from, node_to, weight, Order_from = Order) %>%
-  left_join(layer_taxa, by = c('node_to' = 'ASV_ID')) %>%
-  select(layer, node_from, node_to, weight, Order_from, Order_to = Order)
-
-# use the data above to find partner fidelity?
-phylo_pf <- ord %>% group_by(Order_from, Order_to) %>% summarise(count = n())
-
-
-otherway <- ord %>% 
-  relocate(Order_from, Order_to) %>%
-  rename(Order_to=Order_from, Order_from=Order_to)
-
-calculate_PF_T <- function(variables) {
-  mat_ASV=
-    x %>%
-    group_by(to) %>%
-    select(c(to,level_name)) %>%
-    mutate(present=1) %>%
-    spread(to, present, fill = 0) %>%
-    column_to_rownames("level_name")
-  beta_ASV <- 1-vegdist(mat_ASV, "jaccard") # Convert to similarity
-  PF_J <- mean(beta_ASV)
-  PF_J_sd <- sd(beta_ASV)
-  num_layers <- nrow(as.matrix(beta_ASV))
-  out <- data.frame(PF_J, PF_J_sd, num_layers=num_layers)
-  return(out)
-}
-
-both <- bind_rows(ord, otherway) %>% 
-  # keep only the ones that appear in 2 or more farms
-  group_by(Order_from) %>% group_by(Order_from, Order_to) %>% summarise(count = n()) #?
-  mutate(num_farms_from=n_distinct(level_name)) %>%
-  filter(num_farms_from>=2)
-fidelity_shuff <- both %>% 
-  group_by(from) %>% 
-  group_modify(~calculate_PF_T(.x))
-
-
-
-
-unique(bind_rows(ord, otherway)$Order_from)
+hist(get_taxa_pf("Class")$PF_T)
+hist(get_taxa_pf()$PF_T)
+hist(get_taxa_pf("Family")$PF_T)
+hist(get_taxa_pf("Genus")$PF_T)
 
 
 ## NMI between farms ----

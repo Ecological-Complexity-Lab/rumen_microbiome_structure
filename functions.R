@@ -416,13 +416,27 @@ calculate_PF_J <- function(x) {
   return(out)
 }
 
+calculate_PF_T <- function(x) {
+  mat_ASV=
+    x %>%
+    group_by(taxa_to) %>%
+    select(c(taxa_to, layer, count)) %>%
+    spread(taxa_to, count, fill = 0) %>%
+    column_to_rownames("layer")
+  beta_ASV <- 1-vegdist(mat_ASV, "bray") # Convert to similarity
+  PF_T <- mean(beta_ASV)
+  PF_T_sd <- sd(beta_ASV)
+  num_layers <- nrow(as.matrix(beta_ASV))
+  out <- data.frame(PF_T, PF_T_sd, num_layers=num_layers)
+  return(out)
+}
+
 # This function calculates DISSIMILARITY
 calculate_PF_U <-  function(x, tree) {
   # prune the tree
   included_asvs <- unique(x$to)
   unincluded <- tree$tip.label[!tree$tip.label %in% included_asvs]
   pruned <- dendextend::prune(tree, unincluded)
-  
   
   mat_format <- x %>%
     group_by(to) %>%
