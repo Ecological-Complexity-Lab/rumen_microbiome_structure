@@ -169,47 +169,10 @@ ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>%
 asvs <- sort(unique(c(intras$node_from, intras$node_to)))
 all_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
 
-get_taxa_pf <- function(taxa_level="Order") {
-  print(sum(is.na(all_taxa[,taxa_level]))) #FYI
-  
-  # Handle order taxa 
-  ord <- intras %>% 
-    left_join(all_taxa, by = c('node_from' = 'ASV_ID')) %>%
-    select(layer, node_from, node_to, weight, taxa_from = all_of(taxa_level)) %>%
-    left_join(all_taxa, by = c('node_to' = 'ASV_ID')) %>%
-    select(layer, node_from, node_to, weight, taxa_from, taxa_to = all_of(taxa_level))
-  
-  # get the number of connections between each taxa pair in a layer
-  taxa_pairs <- ord %>% group_by(layer, taxa_from, taxa_to) %>% 
-    summarise(count = n()) %>% drop_na() # we remove lined with unknown taxas
-  otherway <- taxa_pairs %>% 
-    rename(taxa_to=taxa_from, taxa_from=taxa_to)
-  both <- bind_rows(taxa_pairs, otherway)
-  
-  # make it unique
-  both %<>% group_by(layer, taxa_from, taxa_to) %>% 
-    summarise(count = sum(count))
-  
-  # keep only taxas that occur in 2 or more farms
-  both %<>%
-    group_by(taxa_from) %>%
-    mutate(num_farms_from=n_distinct(layer)) %>%
-    filter(num_farms_from>=2)
-  
-  ## PF_T observed network:
-  PF_T_obs <-
-    both %>%
-    group_by(taxa_from) %>%
-    group_modify(~calculate_PF_T(.x)) %>% as_tibble()
-  
-  return(PF_T_obs)
-}
-
-
-hist(get_taxa_pf("Class")$PF_T)
-hist(get_taxa_pf()$PF_T)
-hist(get_taxa_pf("Family")$PF_T)
-hist(get_taxa_pf("Genus")$PF_T)
+hist(get_taxa_pf(intras, all_taxa, "Class")$PF_T)
+hist(get_taxa_pf(intras, all_taxa, "Order")$PF_T)
+hist(get_taxa_pf(intras, all_taxa, "Family")$PF_T)
+hist(get_taxa_pf(intras, all_taxa, "Genus")$PF_T)
 
 
 ## NMI between farms ----

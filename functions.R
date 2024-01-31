@@ -399,7 +399,7 @@ calc_CC_local <- function(x){
   tibble(ASV_ID=V(g)$name, CC=CC, k=degree(g))
 }
 
-# # This function calculates SIMILARITY
+# This function calculates SIMILARITY
 calculate_PF_J <- function(x) {
   mat_ASV=
     x %>%
@@ -413,21 +413,6 @@ calculate_PF_J <- function(x) {
   PF_J_sd <- sd(beta_ASV)
   num_layers <- nrow(as.matrix(beta_ASV))
   out <- data.frame(PF_J, PF_J_sd, num_layers=num_layers)
-  return(out)
-}
-
-calculate_PF_T <- function(x) {
-  mat_ASV=
-    x %>%
-    group_by(taxa_to) %>%
-    select(c(taxa_to, layer, count)) %>%
-    spread(taxa_to, count, fill = 0) %>%
-    column_to_rownames("layer")
-  beta_ASV <- 1-vegdist(mat_ASV, "bray") # Convert to similarity
-  PF_T <- mean(beta_ASV)
-  PF_T_sd <- sd(beta_ASV)
-  num_layers <- nrow(as.matrix(beta_ASV))
-  out <- data.frame(PF_T, PF_T_sd, num_layers=num_layers)
   return(out)
 }
 
@@ -465,6 +450,59 @@ calculate_PF_U <-  function(x, tree) {
   }
   
   return(unifrac_summ)
+}
+
+# This function calculates SIMILARITY
+calculate_PF_T <- function(x) {
+  mat_ASV=
+    x %>%
+    group_by(taxa_to) %>%
+    select(c(taxa_to, layer, count)) %>%
+    spread(taxa_to, count, fill = 0) %>%
+    column_to_rownames("layer")
+  beta_ASV <- 1-vegdist(mat_ASV, "bray") # Convert to similarity
+  PF_T <- mean(beta_ASV)
+  PF_T_sd <- sd(beta_ASV)
+  num_layers <- nrow(as.matrix(beta_ASV))
+  out <- data.frame(PF_T, PF_T_sd, num_layers=num_layers)
+  return(out)
+}
+
+# gets network and check taxa fidelity
+get_taxa_pf <- function(network, taxa_data, taxa_level="Order") {
+  print(paste("Taxa NAs:", sum(is.na(taxa_data[,taxa_level])))) #FYI
+  
+  # Handle order taxa 
+  ord <- network %>% 
+    left_join(taxa_data, by = c('node_from' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from = all_of(taxa_level)) %>%
+    left_join(taxa_data, by = c('node_to' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from, taxa_to = all_of(taxa_level))
+  
+  # get the number of connections between each taxa pair in a layer
+  taxa_pairs <- ord %>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = n()) %>% drop_na() # we remove lined with unknown taxas
+  otherway <- taxa_pairs %>% 
+    rename(taxa_to=taxa_from, taxa_from=taxa_to)
+  both <- bind_rows(taxa_pairs, otherway)
+  
+  # make it unique
+  both %<>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = sum(count))
+  
+  # keep only taxas that occur in 2 or more farms
+  both %<>%
+    group_by(taxa_from) %>%
+    mutate(num_farms_from=n_distinct(layer)) %>%
+    filter(num_farms_from>=2)
+  
+  ## PF_T observed network:
+  PF_T_obs <-
+    both %>%
+    group_by(taxa_from) %>%
+    group_modify(~calculate_PF_T(.x)) %>% as_tibble()
+  
+  return(PF_T_obs)
 }
 
 

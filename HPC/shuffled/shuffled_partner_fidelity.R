@@ -31,7 +31,7 @@ if (length(commandArgs(trailingOnly=TRUE))==0) {
 }
 
 #net_id=1 
-print(paste("Suffled network number:", net_id ))
+print(paste("Shuffled network number:", net_id ))
 
 
 # read the shuffled networks and analyze -----
@@ -42,7 +42,8 @@ farm_net_shuff <- sapply(farm_net_shuff, read_csv, simplify=FALSE) %>%
   bind_rows(.id = "id") 
 
 # fidelity analysis on the shuffled network
-print("Calculate fidelity for network." )
+# Jaccard based ----
+print("Calculate Jaccard fidelity for network." )
 
 otherway <- farm_net_shuff %>% 
             relocate(to, from) %>%
@@ -59,6 +60,7 @@ fidelity_shuff$run <- net_id
 write_csv(fidelity_shuff, 'fidelity_shuff_farm_30.csv')
 
 
+# UniFrec based ----
 print("Calculate UniFrec fidelity for network." )
 
 
@@ -71,5 +73,26 @@ unifreq_shuff <- both %>%
 unifreq_shuff$run <- net_id
 write_csv(unifreq_shuff, 'uniFrec_shuff_farm_30.csv')
 
+
+# Taxa PF ----
+ASV_taxa <- read_csv('../ASV_full_taxa.csv') %>% 
+  select(ASV_ID, everything(), -seq16S)
+
+# filter only taxa that exist in the networks
+asvs <- sort(unique(c(farm_net_shuff$node_from, 
+                      farm_net_shuff$node_to)))
+all_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
+
+
+c <- get_taxa_pf(farm_net_shuff, all_taxa, "Class") %>% add_column(taxa="Class")
+o <- get_taxa_pf(farm_net_shuff, all_taxa, "Order") %>% add_column(taxa="Order")
+f <- get_taxa_pf(farm_net_shuff, all_taxa, "Family") %>% add_column(taxa="Family")
+g <- get_taxa_pf(farm_net_shuff, all_taxa, "Genus") %>% add_column(taxa="Genus")
+
+all_taxa_pf <- rbind(c, o, f, g) %>% add_column(run=net_id)
+
+write_csv(all_taxa_pf, 'taxa_pf_shuff_farm_30.csv')
+
+# *******
 print("Done analysing the network." )
 
