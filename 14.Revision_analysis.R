@@ -12,6 +12,8 @@ library(igraph)
 library(blockmodels)
 library(vegan)
 
+source('functions.R')
+
 #------ consts ---------
 single_prob_file <- 'local_output/single_asv_occur_prob_80.csv'
 combo_prob_file <- 'combo_asv_occur_prob.csv'
@@ -169,10 +171,70 @@ ASV_taxa <- read_csv('local_output/ASV_full_taxa.csv') %>%
 asvs <- sort(unique(c(intras$node_from, intras$node_to)))
 all_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
 
-hist(get_taxa_pf(intras, all_taxa, "Class")$PF_T)
-hist(get_taxa_pf(intras, all_taxa, "Order")$PF_T)
-hist(get_taxa_pf(intras, all_taxa, "Family")$PF_T)
-hist(get_taxa_pf(intras, all_taxa, "Genus")$PF_T)
+# collect data:
+c <- get_taxa_pf(intras, all_taxa, "Class") %>% add_column(taxa="Class")
+o <- get_taxa_pf(intras, all_taxa, "Order") %>% add_column(taxa="Order")
+f <- get_taxa_pf(intras, all_taxa, "Family") %>% add_column(taxa="Family")
+g <- get_taxa_pf(intras, all_taxa, "Genus") %>% add_column(taxa="Genus")
+
+PF_T_obs <- rbind(c, o, f, g) %>% add_column(run=0)
+
+ggplot(PF_T_obs, aes(PF_T, fill=taxa)) +
+  geom_histogram(alpha=0.5, color='white', position="identity")+
+  labs(x='Taxa Partner fidelity score', y='Count')+
+  paper_figs_theme +
+  theme(panel.grid=element_blank(),
+        axis.text = element_text(size=10, color='black'),
+        axis.title = element_text(size=10, color='black'),
+        legend.position = c(0.6, 70))
+
+# read shuffled taxa PF results: 
+# Folder from HPC containing the 001-500 sub-folders
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
+sub.folders <- list.dirs(parent.folder, recursive=TRUE)[-1]
+
+# read all shuffled networks
+PF_T_shuff <- NULL
+for (dir in sub.folders) {
+  print(dir)
+  shuff_fid <- fread(paste(dir,"/taxa_pf_shuff_farm_30.csv", sep="")) # Faster to read with this
+  PF_T_shuff <- rbind(PF_T_shuff, shuff_fid)
+}
+names(PF_T_shuff) <- c("taxa_from", "PF_T", "PF_T_sd", "num_layers", "taxa", "run")
+PF_T_shuff <- as_tibble(PF_T_shuff)
+
+write_csv(PF_T_shuff, 'local_output/PF_T_pos_30_shuffled_r0.csv')
+
+# calculate Z score: includes all taxa t
+PF_T_z_score <- 
+  PF_T_shuff %>%
+  group_by(taxa_from, taxa) %>%
+  summarise(PF_T_shuff_mean=mean(PF_T), PF_J_shuff_sd=sd(PF_T)) %>% 
+  inner_join(PF_T_obs) %>%
+  mutate(z=(PF_T-PF_T_shuff_mean)/PF_T_shuff_sd) %>% 
+  mutate(signif=case_when(z>1.96 ~ 'above', # Obs is more than the shuffled
+                          z< -1.96 ~ 'below', # Obs is lower than the shuffled
+                          z<=1.96 | z>=-1.96 ~ 'not signif'))
+
+# What proportion of ASVs have a statistical significant PF_J?
+PF_T_z_score %>% 
+  group_by(signif) %>% 
+  summarise(n=n(),prop=n/nrow(PF_T_z_score))
+
+
+# Pie figure:
+PF_T_z_score %>% group_by(taxa, signif) %>% 
+  summarise(n=n()) %>% 
+  mutate(prop = n / sum(n)) %>% 
+  mutate(N = sum(n)) %>% 
+  mutate(signif=factor(signif, levels=c('not signif','below','above'))) %>% 
+  mutate(ypos = cumsum(prop)- 0.5*prop ) %>% 
+  ggplot(aes(x="", y=prop, fill=signif))+
+  facet_wrap(~taxa)+
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values = c('blue','orange','#32a852'))+
+  coord_polar("y", start=0)+
+  paper_figs_theme_no_legend+theme_void()
 
 
 ## NMI between farms ----
