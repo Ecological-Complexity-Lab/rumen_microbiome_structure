@@ -11,6 +11,8 @@ library(data.table)
 library(igraph)
 library(blockmodels)
 library(vegan)
+library(NMI)
+library(pheatmap)
 
 source('functions.R')
 
@@ -238,7 +240,39 @@ PF_T_z_score %>% group_by(taxa, signif) %>%
 
 
 ## NMI between farms ----
-# TODO implement - between sbm results
+# read groups per farm (created up in this script)
+mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+
+infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
+  select(farm=short_name, node_name, module) # infomap with unifrec interlayer edges
+  # note that here the is a multilayer network. 
+  # meaning module 6 in one layer is the same module as module 6 in another layer.
+
+NMI_from_membership <- function(table, names) {
+  NMIs <- matrix(0, nrow = length(names), ncol = length(names))
+  colnames(NMIs) <- rownames(NMIs) <- names
+  
+  for (i in rownames(NMIs)) {
+    farm1 <- table %>% filter(farm==i) %>% select(-farm)
+      for (j in colnames(NMIs)) {
+        farm2 <- table %>% filter(farm==j) %>% select(-farm)
+        
+        NMIs[i,j] <- NMI(farm1, farm2)$value
+      }
+  }
+  return(NMIs)
+}
+
+
+sbms     <- NMI_from_membership(mems_table, layers$short_name)
+infomaps <- NMI_from_membership(infomap_table, layers$short_name) 
+            # Note: NMI = 0 if all the labels of the layer are in the same group
+# save results
+write_csv(as.data.frame(sbms), "local_output/NMI_SBM_layers_30")
+write_csv(as.data.frame(infomaps), "local_output/NMI_Infomap_layers_30")
+
+pheatmap(sbms)
+pheatmap(infomaps) # maybe do this without removing small modules?
 
 
 ## modularity - phylogenetic composition --------
