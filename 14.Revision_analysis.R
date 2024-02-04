@@ -37,7 +37,7 @@ ASV_data_80 <- read_csv("local_output/core_ASV_80.csv")
 ASV_data_30 <- read_csv("local_output/core_ASV_30.csv")
 
 
-# ------ Cow level: ---------
+# ------ Cow level: ---------------------------------
 ## link vs shuffled -----
 # Compare link from empiric to all in 500 shuffled, 
 # to see if they exist in less then 5% of 500 shuffled networks so they are significant
@@ -89,7 +89,7 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
   geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity')
 
 
-# ------ Farm level: ---------
+# ------ Farm level: --------------------------------
 ## SBM on layer -----
 # find group number per layer in empiric network
 gps <- NULL
@@ -160,8 +160,7 @@ ggplot(med_embd, aes(xx, yy, color = farm)) +
 
 
 
-# ------ Interfarm level: ---------
-
+# ------ Inter-farm level: --------------------------
 ## taxonomic beta-diversity ------ 
 # or phylogeny partner fidelity
 
@@ -281,11 +280,32 @@ pheatmap(infomaps) # maybe do this without removing small modules?
 
 
 ## NMI of clusters and hypothesis ---------
-# TODO implement
+# TODO what cd method to use?
+mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
+  select(farm=short_name, asv_id=node_name, membership=module)
 
+# built hypothesis table:
+# H1 + H2 + H3:
+Hs <- infomap_table %>% 
+               mutate(H1=farm) %>% 
+               mutate(H2=case_when(farm %in% c("FI1", "SE1") ~ "north",
+                                  !farm %in% c("FI1", "SE1") ~ "south")) %>%
+               add_column(H3=1) %>% 
+               mutate(label=paste(farm, asv_id, sep = "_"))
 
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H1, -farm)) # 0.8566478 - highers value
 
-# --- not sure will be done ----
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H2, -farm)) # 0.5038392
+
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H3, -farm)) # 0 - because its one big group
+
+# TODO make sure with shai this is done correctly
+
+# --- not sure will be done --------------------------
 
 ## Transitivity ---------
 
