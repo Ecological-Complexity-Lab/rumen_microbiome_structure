@@ -201,7 +201,6 @@ for (dir in sub.folders) {
   shuff_fid <- fread(paste(dir,"/taxa_pf_shuff_farm_30.csv", sep="")) # Faster to read with this
   PF_T_shuff <- rbind(PF_T_shuff, shuff_fid)
 }
-names(PF_T_shuff) <- c("taxa_from", "PF_T", "PF_T_sd", "num_layers", "taxa", "run")
 PF_T_shuff <- as_tibble(PF_T_shuff)
 
 write_csv(PF_T_shuff, 'local_output/PF_T_pos_30_shuffled_r0.csv')
@@ -210,8 +209,8 @@ write_csv(PF_T_shuff, 'local_output/PF_T_pos_30_shuffled_r0.csv')
 PF_T_z_score <- 
   PF_T_shuff %>%
   group_by(taxa_from, taxa) %>%
-  summarise(PF_T_shuff_mean=mean(PF_T), PF_J_shuff_sd=sd(PF_T)) %>% 
-  inner_join(PF_T_obs) %>%
+  summarise(PF_T_shuff_mean=mean(PF_T), PF_T_shuff_sd=sd(PF_T)) %>% 
+  inner_join(PF_T_obs %>% select(taxa_from, PF_T)) %>%
   mutate(z=(PF_T-PF_T_shuff_mean)/PF_T_shuff_sd) %>% 
   mutate(signif=case_when(z>1.96 ~ 'above', # Obs is more than the shuffled
                           z< -1.96 ~ 'below', # Obs is lower than the shuffled
