@@ -41,6 +41,8 @@ farm_net_shuff <- list.files(path = "." , pattern = paste('_edge_list.csv',sep="
 farm_net_shuff <- sapply(farm_net_shuff, read_csv, simplify=FALSE) %>% 
   bind_rows(.id = "id") 
 
+farm_net_shuff <- farm_net_shuff %>% filter(edge_type=="pos") # make sure we only take the positive links
+
 # fidelity analysis on the shuffled network
 # Jaccard based ----
 print("Calculate Jaccard fidelity for network." )
@@ -75,19 +77,24 @@ write_csv(unifreq_shuff, 'uniFrec_shuff_farm_30.csv')
 
 
 # Taxa PF ----
+print("Calculate taxa fidelity for network." )
+
 ASV_taxa <- read_csv('../ASV_full_taxa.csv') %>% 
   select(ASV_ID, everything(), -seq16S)
 
 # filter only taxa that exist in the networks
-asvs <- sort(unique(c(farm_net_shuff$node_from, 
-                      farm_net_shuff$node_to)))
+asvs <- sort(unique(c(farm_net_shuff$from, 
+                      farm_net_shuff$to)))
 all_taxa <- ASV_taxa %>% filter(ASV_ID %in% asvs)
 
+renamed <- farm_net_shuff %>% 
+           select(layer=level_name, node_from=from, node_to=to, weight)
 
-c <- get_taxa_pf(farm_net_shuff, all_taxa, "Class") %>% add_column(taxa="Class")
-o <- get_taxa_pf(farm_net_shuff, all_taxa, "Order") %>% add_column(taxa="Order")
-f <- get_taxa_pf(farm_net_shuff, all_taxa, "Family") %>% add_column(taxa="Family")
-g <- get_taxa_pf(farm_net_shuff, all_taxa, "Genus") %>% add_column(taxa="Genus")
+print("taxa done in order: Class -> Order -> Family -> Genus")
+c <- get_taxa_pf(renamed, all_taxa, "Class") %>% add_column(taxa="Class")
+o <- get_taxa_pf(renamed, all_taxa, "Order") %>% add_column(taxa="Order")
+f <- get_taxa_pf(renamed, all_taxa, "Family") %>% add_column(taxa="Family")
+g <- get_taxa_pf(renamed, all_taxa, "Genus") %>% add_column(taxa="Genus")
 
 all_taxa_pf <- rbind(c, o, f, g) %>% add_column(run=net_id)
 

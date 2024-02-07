@@ -1,4 +1,8 @@
 
+# Consts ----------------------------------------------------------------
+paper_output_path <- "~/Dropbox (BGU)/Apps/Overleaf/Rumen microbiome coocurrence/"
+
+
 # HPC ---------------------------------------------------------------------
 
 write_to_log <- function(x, exp_id, JOB_ID, level, level_name, append=T){
@@ -79,7 +83,7 @@ parse_networks <- function(e_id, Level, Level_name){
   return(out)
 }
 
-parse_networks_from_cooc <- function(e_id, Level="Farm", Level_name="UK1", sig_lv=0.05, pos_only=TRUE){
+parse_networks_from_cooc <- function(e_id, Level="Farm", Level_name="UK1", pos_only=TRUE){
   JOB_ID <- subset(as.data.frame(run_summary), exp_id==e_id & level==Level & level_name==Level_name)$JOB_ID
   # Get nodes
   nodes <- suppressMessages(read_csv(paste(e_id,JOB_ID,Level,Level_name,"nodes.csv",sep = "_")))
@@ -144,98 +148,6 @@ html_figs_theme_no_legend <-
   html_figs_theme +
   theme(legend.position = 'none')
 
-# shuffling by scale ---------------------------
-
-shuffle_farm_microbe <- function(data_file_name, nsim=100, output_folder="shuff_farm_005") {
-  asv_data <- read_csv(data_file_name)
-  
-  # This permutes the microbes between cows WITHIN a farm. Microbes are not
-  # shuffled between farms.
-  for (i in 1:nsim){
-    print(i)
-    asv_data %>% 
-      group_by(Farm) %>% # Within a farm
-      mutate(ASV_ID=sample(ASV_ID, replace = F)) %>% 
-      ungroup() %>% 
-      mutate(shuff_id=i) %>% 
-      write_csv(paste(output_folder,'/shuff_farm_',str_pad(i, 3, '0',side='left'),'.csv', sep=''))
-  }
-  write_csv(
-    tibble(e_id=1:nsim, data_file=paste('shuff_farm_',str_pad(1:nsim, 3, '0',side='left'),'.csv', sep='')),
-    paste(output_folder,'/experiments.csv', sep=''))
-}
-
-shuffle_region_microbe <- function(data_file_name, nsim=100, output_folder="shuff_farm_005") {
-  asv_data <- read_csv(data_file_name)
-  
-  # This permutes the microbes between cows between farms. Microbes are 
-  # shuffled between farms.
-  for (i in 1:nsim){
-    print(i)
-    asv_data %>% 
-      mutate(ASV_ID=sample(ASV_ID, replace = F)) %>% 
-      ungroup() %>% 
-      mutate(shuff_id=i) %>% 
-      write_csv(paste(output_folder,'/shuff_farm_',str_pad(i, 3, '0',side='left'),'.csv', sep=''))
-  }
-  write_csv(
-    tibble(e_id=1:nsim, data_file=paste('shuff_farm_',str_pad(1:nsim, 3, '0',side='left'),'.csv', sep='')),
-    paste(output_folder,'/experiments.csv', sep=''))
-}
-
-suffle_cow_microb_vegan <- function(data_file_name, nsim=500, output_folder="shuff_vegan_30", shuff_method='curveball'){
-  asv_data <- read_csv(data_file_name)
-  
-  # get layers names
-  farm_names <- asv_data %>% select(Farm) %>% distinct() %>% pull(Farm)
-
-  layers <- list()
-  # make shuffled matrices -
-  # have to separate to farms in order to not shuffle between them
-  for (frm in farm_names) {
-    lyr <- asv_data %>% filter(Farm==frm)
-
-    # convert edgelist to matrix
-    lyr_mat <- lyr %>%
-      select(Cow_Code, ASV_ID) %>% add_column(weight=1) %>%
-      dcast(Cow_Code ~ ASV_ID, value.var = "weight", fill = 0) %>%
-      column_to_rownames(var="Cow_Code")
-
-    # run curveball shuffling
-    null <- vegan::nullmodel(lyr_mat, method = shuff_method)
-    suff <- simulate(null, nsim = nsim, burnin = 5000, seed = 1234)
-
-    layers[[frm]] <- suff
-  }
-
-  # make files from shuffled
-  for (i in 1:nsim) {
-    all_farms <- tibble(Country = character(),
-                        Farm = character(),
-                        Cow_Code = character(),
-                        ASV_ID = character(),
-                        Abundance = numeric(),
-                        shuff_id = numeric())
-    # convert multi-mats to "edge lists"
-    for (frm in farm_names) {
-       matt <- layers[[frm]][,,i]
-       # convert
-       edge <- melt(matt) %>% filter(value == 1) %>%
-               select(Cow_Code=Var1, ASV_ID=Var2, Abundance=value) %>%
-               add_column(shuff_id=i) %>%
-               add_column(Farm=frm, .before = 1) %>%
-               add_column(Country=substr(frm, 1, 2), .before = 1)
-       all_farms <- rbind(all_farms, edge)
-    }
-    # save to file
-    write_csv(all_farms, paste(output_folder,'/shuff_farm_',str_pad(i, 3, '0',side='left'),'.csv', sep=''))
-  }
-
-  write_csv(tibble(e_id=1:nsim, 
-                   data_file=paste('shuff_farm_',str_pad(1:nsim, 3, '0',side='left'),'.csv', sep=''),
-                   Abundance_file=basename(data_file_name)),
-            paste(output_folder,'/experiments.csv', sep=''))
-}
 
 # intra layer building functions -------
 cooccur <- function (mat, type = "spp_site", thresh = TRUE, spp_names = FALSE, 
@@ -487,7 +399,7 @@ calc_CC_local <- function(x){
   tibble(ASV_ID=V(g)$name, CC=CC, k=degree(g))
 }
 
-# # This function calculates SIMILARITY
+# This function calculates SIMILARITY
 calculate_PF_J <- function(x) {
   mat_ASV=
     x %>%
@@ -524,7 +436,7 @@ calculate_PF_U <-  function(x, tree) {
   n_habitats <- nrow(unifracs)
   
   unifrac_summ <- NULL
-  for (d in c("d_1", "d_UW", "d_VAW", "d_0", "d_0.5")){
+  for (d in c("d_1", "d_UW", "d_0", "d_0.5")){
     d_vals <- unifracs[, , d]
     du_low <- d_vals[lower.tri(d_vals)]
     
@@ -538,6 +450,59 @@ calculate_PF_U <-  function(x, tree) {
   }
   
   return(unifrac_summ)
+}
+
+# This function calculates SIMILARITY
+calculate_PF_T <- function(x) {
+  mat_ASV=
+    x %>%
+    group_by(taxa_to) %>%
+    select(c(taxa_to, layer, count)) %>%
+    spread(taxa_to, count, fill = 0) %>%
+    column_to_rownames("layer")
+  beta_ASV <- 1-vegdist(mat_ASV, "bray") # Convert to similarity
+  PF_T <- mean(beta_ASV)
+  PF_T_sd <- sd(beta_ASV)
+  num_layers <- nrow(as.matrix(beta_ASV))
+  out <- data.frame(PF_T, PF_T_sd, num_layers=num_layers)
+  return(out)
+}
+
+# gets network and check taxa fidelity
+get_taxa_pf <- function(network, taxa_data, taxa_level="Order") {
+  print(paste("Taxa NAs:", sum(is.na(taxa_data[,taxa_level])))) #FYI
+  
+  # Handle order taxa 
+  ord <- network %>% 
+    left_join(taxa_data, by = c('node_from' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from = all_of(taxa_level)) %>%
+    left_join(taxa_data, by = c('node_to' = 'ASV_ID')) %>%
+    select(layer, node_from, node_to, weight, taxa_from, taxa_to = all_of(taxa_level))
+  
+  # get the number of connections between each taxa pair in a layer
+  taxa_pairs <- ord %>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = n()) %>% drop_na() # we remove lined with unknown taxas
+  otherway <- taxa_pairs %>% 
+    rename(taxa_to=taxa_from, taxa_from=taxa_to)
+  both <- bind_rows(taxa_pairs, otherway)
+  
+  # make it unique
+  both %<>% group_by(layer, taxa_from, taxa_to) %>% 
+    summarise(count = sum(count))
+  
+  # keep only taxas that occur in 2 or more farms
+  both %<>%
+    group_by(taxa_from) %>%
+    mutate(num_farms_from=n_distinct(layer)) %>%
+    filter(num_farms_from>=2)
+  
+  ## PF_T observed network:
+  PF_T_obs <-
+    both %>%
+    group_by(taxa_from) %>%
+    group_modify(~calculate_PF_T(.x)) %>% as_tibble()
+  
+  return(PF_T_obs)
 }
 
 
