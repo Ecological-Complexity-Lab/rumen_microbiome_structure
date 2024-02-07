@@ -13,6 +13,8 @@ library(blockmodels)
 library(vegan)
 library(NMI)
 library(pheatmap)
+library(ape)
+library(dendextend)
 
 source('functions.R')
 
@@ -274,8 +276,48 @@ pheatmap(infomaps) # maybe do this without removing small modules?
 
 
 ## modularity - phylogenetic composition --------
-# includes randomality check
-# TODO implement
+# get membership data, merge with edgelist - only infomap
+infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
+  select(farm=short_name, asv_id=node_name, membership=module)
+
+nets <- intras %>% 
+  left_join(infomap_table, by = c('layer'='farm', 'node_from'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module = membership) %>%
+  left_join(infomap_table, by = c('layer'='farm', 'node_to'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module, to_module = membership) %>% 
+  mutate(same_module=from_module==to_module)
+
+# filter only taxa that exist in the networks
+asvs <- sort(unique(c(intras$node_from, intras$node_to)))
+
+# read and process tree:
+phylo_tree <- readRDS("local_output/fitted_asvs_phylo_tree.rds")
+tree <- phylo_tree$tree
+# prune the tree
+unincluded <- tree$tip.label[!tree$tip.label %in% asvs]
+pruned <- dendextend::prune(tree, unincluded)
+
+# calculate asv distances
+distances <- cophenetic.phylo(pruned)
+
+# get edges distance:
+nets$phylo_dist <- apply(intras, 1, function(x) distances[x[2], x[3]])
+
+write_csv(nets, "local_output/modules_phylogenetic_composition.csv")
+
+# plot distance distribution between in module and out module links 
+nets %>%
+  ggplot( aes(x=phylo_dist, fill=same_module)) +
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  labs(fill="")
+
+# plot distance distribution between modules
+nets %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
+  transform(from_module=as.character(from_module)) %>%
+  ggplot(aes(x=phylo_dist, fill=from_module)) +
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') +
+  labs(fill="Modul number")
 
 
 ## NMI of clusters and hypothesis ---------
