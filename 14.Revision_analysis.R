@@ -100,7 +100,7 @@ for (l in layers$short_name) {
   print(l)
   lay <- intras %>% filter(layer == l)
   
-  g <- graph.data.frame(lay[,2:4])
+  g <- graph.data.frame(lay[1:200,2:4])
   adj <- get.adjacency(g,sparse=FALSE, attr='weight')
   
   sbm_model <- BM_bernoulli$new("SBM", adj)
@@ -125,6 +125,34 @@ write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
 
 groups <- read_csv("local_output/layer_SBM_results.csv")
 mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+
+# get SBM for multilayer - node label will be made up from farm_asv
+# prepare multilayer - turn physical nodes to state nodes
+mln <- intras %>% mutate(from=paste(layer, node_from, sep = "_"), 
+                         to=paste(layer, node_to, sep = "_"))      %>% 
+                  select(from, to, weight)
+
+g <- graph.data.frame(mln)
+adj <- get.adjacency(g,sparse=FALSE, attr='weight')
+
+# run SBM on mln
+sbm_model <- BM_bernoulli$new("SBM", adj)
+sbm_model$estimate() # really long step (days)
+max_group <- which.max(sbm_model$ICL)
+mem <- sbm_model$memberships[[max_group]]$Z
+
+nds <- row.names(adj)
+row.names(mem) <- nds
+
+# membership documenting - find grouping
+grp_mem <- apply(mem, 1, function(x) match(max(x), x)) # this will take the first group with the max value as the node's group.
+mems_tbl <- tibble(asv_id=nds, membership=grp_mem)
+
+# number of groups in the mln: 
+max_group # - 42
+
+saveRDS(sbm_model, "local_output/mln_sbm_estimate.rds")
+write_csv(mems_tbl, "local_output/mln_SBM_membership_results.csv")
 
 
 # --- shuffled data from the HPC
@@ -321,8 +349,6 @@ nets %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
 
 
 ## NMI of clusters and hypothesis ---------
-# TODO what cd method to use?
-mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
 infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
   select(farm=short_name, asv_id=node_name, membership=module)
 
@@ -336,15 +362,31 @@ Hs <- infomap_table %>%
                mutate(label=paste(farm, asv_id, sep = "_"))
 
 NMI(Hs %>% select(label, membership, -farm),
-    Hs %>% select(label, H1, -farm)) # 0.8566478 - highers value
-
+    Hs %>% select(label, H1, -farm)) # 0.8566478 - higher value
 NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H2, -farm)) # 0.5038392
-
 NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H3, -farm)) # 0 - because its one big group
 
-# TODO make sure with shai this is done correctly
+# using sbm results:
+# use multilayer SBM method for this
+membs <- read_csv("local_output/mln_SBM_membership_results.csv") # SBM with labels
+
+# built hypothesis table:
+# H1 + H2 + H3:
+Hs <- membs %>% rename(label=asv_id) %>%
+  separate(label, c('farm'), remove = FALSE, extra = 'drop') %>% 
+  mutate(H1=farm) %>% 
+  mutate(H2=case_when(farm %in% c("FI1", "SE1") ~ "north",
+                      !farm %in% c("FI1", "SE1") ~ "south")) %>%
+  add_column(H3=1)
+
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H1, -farm)) # 0.6659741 - higher value
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H2, -farm)) # 0.2618777
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H3, -farm)) # 0 - because its one big group
 
 # --- not sure will be done --------------------------
 
