@@ -22,6 +22,67 @@ source('functions.R')
 single_prob_file <- 'local_output/single_asv_occur_prob_80.csv'
 combo_prob_file <- 'combo_asv_occur_prob.csv'
 
+#------ functions ------
+# function to calculate traits:
+produce_network_traits <- function(net, grph) {
+  
+  # 1. Node number
+  n_c <- length(unique(c(net$from, net$to)))
+  
+  # 2. edge number
+  n_e <- nrow(net)
+  
+  # 3. connectivity
+  den <- n_e/n_c
+  
+  # 4. density
+  potential_edges <- n_c*(n_c-1)/2
+  conn <- n_e / potential_edges
+  
+  # 5. Diameter (longest path)
+  diam <- diameter(grph, directed = FALSE)
+  
+  # 6. average path length
+  avg_path <- mean_distance(grph, directed = FALSE, unconnected = FALSE)
+  
+  # 7. betweenness
+  bet <- betweenness(grph, directed = FALSE)[[1]]
+  
+  # 8. Mean Clustering Coefficient
+  cc <- transitivity(grph, type = 'local')
+  cc_mean <- mean(cc[!is.na(cc)])
+  
+  # 9. mean degree
+  degs <- igraph::degree(grph, loops = FALSE)
+  deg_mean <- mean(degs)
+  
+  
+  # prepate output
+  df_line <- data.frame(n_nodes=n_c,
+                        n_edges=n_e,
+                        density=den,
+                        connectanse=conn,
+                        diameter=diam,
+                        avg_path=avg_path, 
+                        between = bet, 
+                        mean_cc = cc_mean, 
+                        mean_degree = deg_mean)
+  return(df_line)
+}
+
+# function to process dataframe for pca:
+remove_constants <- function(net_to_clean) {
+  # remove columns that are constant 
+  to_remove <- c()
+  for (col in colnames(net_to_clean)) {
+    if (length(unique(net_to_clean[,col])) == 1L) {
+      to_remove <- c(to_remove, col)
+    }
+  }
+  
+  return(net_to_clean %>% select(-all_of(to_remove)))
+}
+
 #------ run ------------
 ## Read data to be used -----
 # read network:
@@ -171,23 +232,141 @@ all_groups %>% ggplot(aes(x=max_ICL, fill = as.factor(farm))) +
 
 
 ## network embedding -----
-# Process results from HPC run:
-# read embedding data that was ran on the HPC
-mean_embd <- read_csv("HPC/shuffled/embed_network/mean_shuff_net_embeding.csv")
-med_embd <- read_csv("HPC/shuffled/embed_network/median_shuff_net_embeding.csv")
+### compare the different layers ----
+# observed:
+# get network traits
+tifs <- NULL
+all_net_traits <- NULL
+for (l in layers$short_name) {
+  print(l)
+  nett <- intras %>% filter(layer == l) %>% select(from=node_from, to=node_to, weight)
+  
+  # motifs:
+  g <- graph.data.frame(nett)
+  m <- motifs(g)
+  tifs <- rbind(tifs ,m) 
+  
+  # other traits:
+  traits <- produce_network_traits(nett, g)
+  rownames(traits) <- l
+  all_net_traits <- rbind(all_net_traits, traits)
+}
 
-# Plot mean embedding data
-ggplot(mean_embd, aes(mean_embd, yy, color = farm)) +
-  geom_point() +
-  theme_minimal() +
-  ggtitle("Mean Graph Embeddings")
+farm_motifs <- as.data.frame(tifs) %>% select_if(~ !any(is.na(.)))
+rownames(farm_motifs) <- layers$short_name
 
-# Plot mean embedding data
-ggplot(med_embd, aes(xx, yy, color = farm)) +
-  geom_point() +
-  theme_minimal() +
-  ggtitle("Median Graph Embeddings")
+# add cow number
+farm_traits <- read_csv("local_output/paper_table1.csv")
+all_net_traits$cows <- farm_traits$Cows
 
+for_pca <- merge(all_net_traits, farm_motifs, by = 'row.names', all = FALSE) 
+
+for_pca %<>% column_to_rownames("Row.names")
+
+for_pca <- remove_constants(for_pca)
+
+write.csv(for_pca, "local_output/network_traits_for_pca_obs.csv", row.names=TRUE)
+
+
+# run the PCA analysis
+res.pca <- prcomp(for_pca, scale = TRUE)
+fviz_eig(res.pca)
+fviz_pca_ind(res.pca,
+             col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)     # Avoid text overlapping
+
+
+### compare the observed layer to its shuffled ----
+# read shuffled networks
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
+files <- list.files(path = parent.folder , pattern = '_edge_list.csv', recursive = T,full.names = T)
+
+tfs_shuff <- NULL
+shuff_net_traits <- NULL
+for (f in files) {
+  print(f)
+  shuf_net <- fread(f) %>% filter(edge_type=="pos")
+  s_id <- str_split_fixed(f, pattern = '/', n = 5)[4]
+  l <- str_split_fixed(basename(f), pattern = '_', n = 5)[4]
+  rname <- paste(s_id, l, sep = "_")
+  
+  # motifs:
+  g <- graph.data.frame(shuf_net[,1:3])
+  m <- motifs(g)
+  s_motifs <- t(as.data.frame(m))
+  rownames(s_motifs) <- rname
+  
+  tfs_shuff <- rbind(tfs_shuff ,s_motifs) 
+  
+  # other traits:
+  traits <- produce_network_traits(shuf_net, g)
+  rownames(traits) <- rname
+  shuff_net_traits <- rbind(shuff_net_traits, traits)
+}
+
+# merge
+to_process <- merge(shuff_net_traits, tfs_shuff, by = 'row.names') 
+
+# save traits data to a file
+write_csv(to_process, "local_output/network_traits_for_pca_shuff.csv")
+
+# cleanup motives table - no NA or constant columns
+pca_input <- remove_constants(to_process) %>% column_to_rownames("Row.names")
+
+# run the PCA analysis per layer:
+# add observed
+obs_pca <- read.csv("local_output/network_traits_for_pca_obs.csv", row.names = 1) %>%
+            select(-cows)
+pca_input <- rbind(obs_pca, pca_input)
+
+all_plot_data <- NULL
+for (frm in layers$short_name) {
+  print(frm)
+  curr <- pca_input %>% filter(grepl(frm, row.names(pca_input))) %>% 
+    select(-n_nodes) # networks of the same farm have the same number of nodes
+  
+  res.pca <- prcomp(curr, scale = TRUE)
+  res.ind <- get_pca_ind(res.pca)
+
+  to_plot <- as.data.frame(res.ind$coord) %>% 
+    select(Dim.1, Dim.2) %>% add_column(type="shuff", farm=frm) 
+  to_plot[1, "type"] <- "obs"
+  
+  all_plot_data <- rbind(all_plot_data, to_plot)
+}
+
+# plot the observed vs shuffled PCA results, per farm
+pdf("local_output/figures/PCA_per_layer_output.pdf")
+ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) + 
+        geom_point(aes(size=type)) +
+        scale_color_manual(values=c('red', '#999999'))+
+        scale_size_manual(values=c(2,1))+
+        paper_figs_theme + facet_wrap(~ farm, ncol=3)
+dev.off()
+
+#plot all in one:
+ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) + 
+  geom_point(aes(size=type)) +
+  scale_color_manual(values=c('red', '#999999'))+
+  scale_size_manual(values=c(2,1))+
+  paper_figs_theme + ggtitle("All farms PCA results (7 differend PCA analysis) in one plot")
+
+
+# run PCA on all the networks we have, on one scale:
+res.pca_all <- prcomp(pca_input, scale = TRUE)
+res.ind_all <- get_pca_ind(res.pca_all)
+
+to_plot_all <- as.data.frame(res.ind_all$coord) %>% 
+  select(Dim.1, Dim.2) %>% add_column(type="shuff") 
+to_plot_all[1:7, "type"] <- "obs"
+
+# plot it:
+ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=type)) + 
+  geom_point(aes(size=type)) +
+  scale_color_manual(values=c('red', '#999999'))+
+  scale_size_manual(values=c(2,1))+
+  paper_figs_theme + ggtitle("PCA result for all farms")
 
 
 # ------ Inter-farm level: --------------------------
