@@ -149,7 +149,9 @@ for (l in layers$short_name) {
 
 # plot the layers
 all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
-  geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity')
+  geom_histogram(aes(y = after_stat(density)), alpha=0.4, position='identity') +
+  geom_vline(xintercept = 0.05, linetype="dashed", color = "red", size=0.5) + 
+  labs(fill="Farm")
 
 
 # ------ Farm level: --------------------------------
@@ -187,7 +189,8 @@ write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
 groups <- read_csv("local_output/layer_SBM_results.csv")
 mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
 
-# get SBM for multilayer - node label will be made up from farm_asv
+### get SBM for multilayer - not on individual layers -----
+# how: node label will be made up from farm_asv (so its a state node)
 # prepare multilayer - turn physical nodes to state nodes
 mln <- intras %>% mutate(from=paste(layer, node_from, sep = "_"), 
                          to=paste(layer, node_to, sep = "_"))      %>% 
@@ -266,7 +269,7 @@ for_pca %<>% column_to_rownames("Row.names")
 for_pca <- remove_constants(for_pca)
 
 write.csv(for_pca, "local_output/network_traits_for_pca_obs.csv", row.names=TRUE)
-
+for_pca <- read.csv("local_output/network_traits_for_pca_obs.csv", row.names = 1)
 
 # run the PCA analysis
 res.pca <- prcomp(for_pca, scale = TRUE)
@@ -345,12 +348,12 @@ ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) +
         paper_figs_theme + facet_wrap(~ farm, ncol=3)
 dev.off()
 
-#plot all in one:
+#plot all in one: - results from 7 different PCA run are plotted together
 ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) + 
   geom_point(aes(size=type)) +
   scale_color_manual(values=c('red', '#999999'))+
   scale_size_manual(values=c(2,1))+
-  paper_figs_theme + ggtitle("All farms PCA results (7 differend PCA analysis) in one plot")
+  paper_figs_theme + ggtitle("All farms PCA results (7 differend PCA analysis)")
 
 
 # run PCA on all the networks we have, on one scale:
@@ -361,7 +364,7 @@ to_plot_all <- as.data.frame(res.ind_all$coord) %>%
   select(Dim.1, Dim.2) %>% add_column(type="shuff") 
 to_plot_all[1:7, "type"] <- "obs"
 
-# plot it:
+# plot it: - results from one PCA run for 507 individuals are plotted together
 ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=type)) + 
   geom_point(aes(size=type)) +
   scale_color_manual(values=c('red', '#999999'))+
@@ -395,8 +398,7 @@ ggplot(PF_T_obs, aes(PF_T, fill=taxa)) +
   paper_figs_theme +
   theme(panel.grid=element_blank(),
         axis.text = element_text(size=10, color='black'),
-        axis.title = element_text(size=10, color='black'),
-        legend.position = c(0.6, 70))
+        axis.title = element_text(size=10, color='black'))
 
 # read shuffled taxa PF results: 
 # Folder from HPC containing the 001-500 sub-folders
@@ -413,6 +415,7 @@ for (dir in sub.folders) {
 PF_T_shuff <- as_tibble(PF_T_shuff)
 
 write_csv(PF_T_shuff, 'local_output/PF_T_pos_30_shuffled_r0.csv')
+PF_T_shuff <- read_csv('local_output/PF_T_pos_30_shuffled_r0.csv')
 
 # calculate Z score: includes all taxa t
 PF_T_z_score <- 
@@ -478,6 +481,10 @@ infomaps <- NMI_from_membership(infomap_table, layers$short_name)
 write_csv(as.data.frame(sbms), "local_output/NMI_SBM_layers_30")
 write_csv(as.data.frame(infomaps), "local_output/NMI_Infomap_layers_30")
 
+# read results to present
+sbms <- read_csv("local_output/NMI_SBM_layers_30")
+infomaps <- read_csv("local_output/NMI_Infomap_layers_30")
+
 pheatmap(sbms)
 pheatmap(infomaps) # maybe do this without removing small modules?
 
@@ -512,19 +519,23 @@ nets$phylo_dist <- apply(intras, 1, function(x) distances[x[2], x[3]])
 
 write_csv(nets, "local_output/modules_phylogenetic_composition.csv")
 
+# read results for plotting
+nets <- read_csv("local_output/modules_phylogenetic_composition.csv")
+
+
 # plot distance distribution between in module and out module links 
 nets %>%
   ggplot( aes(x=phylo_dist, fill=same_module)) +
   geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) +
-  labs(fill="")
+  labs(fill="") + ggtitle("Edges between and within modules")
 
 # plot distance distribution between modules
 nets %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
   transform(from_module=as.character(from_module)) %>%
   ggplot(aes(x=phylo_dist, fill=from_module)) +
   geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') +
-  labs(fill="Modul number")
+  labs(fill="Modul number") + ggtitle("Edges within each module")
 
 
 ## NMI of clusters and hypothesis ---------
