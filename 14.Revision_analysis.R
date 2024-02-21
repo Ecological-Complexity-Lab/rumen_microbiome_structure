@@ -15,6 +15,7 @@ library(NMI)
 library(pheatmap)
 library(ape)
 library(dendextend)
+library(factoextra)
 
 source('functions.R')
 
@@ -72,6 +73,7 @@ produce_network_traits <- function(net, grph) {
 
 # function to process dataframe for pca:
 remove_constants <- function(net_to_clean) {
+  net_to_clean <- as.data.frame(net_to_clean)
   # remove columns that are constant 
   to_remove <- c()
   for (col in colnames(net_to_clean)) {
@@ -81,6 +83,22 @@ remove_constants <- function(net_to_clean) {
   }
   
   return(net_to_clean %>% select(-all_of(to_remove)))
+}
+
+# produce a pairwise NMI values between the farms
+NMI_from_membership <- function(table, names) {
+  NMIs <- matrix(0, nrow = length(names), ncol = length(names))
+  colnames(NMIs) <- rownames(NMIs) <- names
+  
+  for (i in rownames(NMIs)) {
+    farm1 <- table %>% filter(farm==i) %>% select(-farm)
+    for (j in colnames(NMIs)) {
+      farm2 <- table %>% filter(farm==j) %>% select(-farm)
+      
+      NMIs[i,j] <- NMI(farm1, farm2)$value
+    }
+  }
+  return(NMIs)
 }
 
 #------ run ------------
@@ -156,7 +174,7 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
 
 # ------ Farm level: --------------------------------
 ## SBM on layer -----
-# find group number per layer in empiric network
+### find group number per layer in empiric network ----
 gps <- NULL
 mems_table <- NULL
 for (l in layers$short_name) {
@@ -188,6 +206,11 @@ write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
 
 groups <- read_csv("local_output/layer_SBM_results.csv")
 mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+
+mems_table %>% group_by(farm, membership) %>% summarise(n=n()) %>%
+  ggplot(aes(x=membership, y=n)) + 
+  geom_bar(stat="identity") + paper_figs_theme + 
+  facet_wrap(~ farm, ncol=3) + labs(x="Group ID", y="Number of ASVs")
 
 ### get SBM for multilayer - not on individual layers -----
 # how: node label will be made up from farm_asv (so its a state node)
@@ -273,11 +296,18 @@ for_pca <- read.csv("local_output/network_traits_for_pca_obs.csv", row.names = 1
 
 # run the PCA analysis
 res.pca <- prcomp(for_pca, scale = TRUE)
-fviz_eig(res.pca)
+
+# Visualize PCA
+fviz_eig(res.pca, addlabels = TRUE)
+fviz_pca_var(res.pca, col.var = "cos2",
+             gradient.cols = c("black", "orange", "green"),
+             repel = TRUE)
 fviz_pca_ind(res.pca,
              col.ind = "cos2", # Color by the quality of representation
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE)     # Avoid text overlapping
+fviz_cos2(res.pca, choice = "var", axes = 1:2)
+summary(res.pca)
 
 
 ### compare the observed layer to its shuffled ----
@@ -313,6 +343,7 @@ to_process <- merge(shuff_net_traits, tfs_shuff, by = 'row.names')
 
 # save traits data to a file
 write_csv(to_process, "local_output/network_traits_for_pca_shuff.csv")
+to_process <- read_csv("local_output/network_traits_for_pca_shuff.csv")
 
 # cleanup motives table - no NA or constant columns
 pca_input <- remove_constants(to_process) %>% column_to_rownames("Row.names")
@@ -348,13 +379,6 @@ ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) +
         paper_figs_theme + facet_wrap(~ farm, ncol=3)
 dev.off()
 
-#plot all in one: - results from 7 different PCA run are plotted together
-ggplot(all_plot_data, aes(x=Dim.1, y=Dim.2, color=type)) + 
-  geom_point(aes(size=type)) +
-  scale_color_manual(values=c('red', '#999999'))+
-  scale_size_manual(values=c(2,1))+
-  paper_figs_theme + ggtitle("All farms PCA results (7 differend PCA analysis)")
-
 
 # run PCA on all the networks we have, on one scale:
 res.pca_all <- prcomp(pca_input, scale = TRUE)
@@ -362,13 +386,15 @@ res.ind_all <- get_pca_ind(res.pca_all)
 
 to_plot_all <- as.data.frame(res.ind_all$coord) %>% 
   select(Dim.1, Dim.2) %>% add_column(type="shuff") 
+to_plot_all[,"farm"] <- str_split_fixed(rownames(to_plot_all), pattern="_", n=2)[,2]
+to_plot_all[1:7,"farm"] <- rownames(to_plot_all)[1:7]
 to_plot_all[1:7, "type"] <- "obs"
 
 # plot it: - results from one PCA run for 507 individuals are plotted together
-ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=type)) + 
-  geom_point(aes(size=type)) +
-  scale_color_manual(values=c('red', '#999999'))+
-  scale_size_manual(values=c(2,1))+
+ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=farm)) + 
+  geom_point(aes(shape=type, size=type)) +
+  scale_shape_manual(values=c(16, 3)) +
+  scale_size_manual(values=c(3, 1)) +
   paper_figs_theme + ggtitle("PCA result for all farms")
 
 
@@ -458,49 +484,105 @@ infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
   # note that here the is a multilayer network. 
   # meaning module 6 in one layer is the same module as module 6 in another layer.
 
-NMI_from_membership <- function(table, names) {
-  NMIs <- matrix(0, nrow = length(names), ncol = length(names))
-  colnames(NMIs) <- rownames(NMIs) <- names
-  
-  for (i in rownames(NMIs)) {
-    farm1 <- table %>% filter(farm==i) %>% select(-farm)
-      for (j in colnames(NMIs)) {
-        farm2 <- table %>% filter(farm==j) %>% select(-farm)
-        
-        NMIs[i,j] <- NMI(farm1, farm2)$value
-      }
-  }
-  return(NMIs)
-}
-
-
 sbms     <- NMI_from_membership(mems_table, layers$short_name)
 infomaps <- NMI_from_membership(infomap_table, layers$short_name) 
             # Note: NMI = 0 if all the labels of the layer are in the same group
 # save results
-write_csv(as.data.frame(sbms), "local_output/NMI_SBM_layers_30")
-write_csv(as.data.frame(infomaps), "local_output/NMI_Infomap_layers_30")
+write.csv(as.data.frame(sbms), "local_output/NMI_SBM_layers_30", row.names = TRUE)
+write.csv(as.data.frame(infomaps), "local_output/NMI_Infomap_layers_30", row.names = TRUE)
 
 # read results to present
-sbms <- read_csv("local_output/NMI_SBM_layers_30")
-infomaps <- read_csv("local_output/NMI_Infomap_layers_30")
+sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
+infomaps <- read.csv("local_output/NMI_Infomap_layers_30", row.names = 1)
 
 pheatmap(sbms)
 pheatmap(infomaps) # maybe do this without removing small modules?
 
 
+# Read NMI for sbm grouping + Jaccard between farms
+sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
+jac <- read.csv("local_output/jaccard_beta_diversity_30", row.names = 1)
+
+# perform mantel test: (spearman)
+m_res1 <- mantel(sbms, jac, method = "spearman", permutations = 9999)
+m_res1 # Mantel statistic r: 0.587 , p-val: 0.005754 
+
+# perform mantel test: (pearson)
+m_res2 <- mantel(sbms, jac, permutations = 9999)
+m_res2 # Mantel statistic r: 0.6009 , p-val: 0.003373 
+
+
+# compare to SBM MNI to shuffled memberships ----
+mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
+sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
+
+# prepare the matrix with shuffled NMI values:
+result <- array(0, dim = c(7,7,1000))
+rownames(result) <- colnames(result) <- layers$short_name
+
+# shuffle membership then run nmi 1000 times
+for (i in 1:1000) {
+  curr_shuff <- NULL
+  #reesembel shuffled farms memberships
+  for (f in layers$short_name) {
+    l <- mems_table %>% filter(farm==f)
+    shuffled <- sample(l$membership)
+    
+    sh_farm <- cbind(l[,1:2], shuffled)
+    
+    curr_shuff <- rbind(curr_shuff, sh_farm)
+  }
+
+  shuff_mnis <- NMI_from_membership(curr_shuff, layers$short_name)
+  result[,,i] <- shuff_mnis
+  
+  print(i)
+}
+
+# compare shuffled to observed
+hist(result[2,1,])
+
+#check p-value per farm pair
+pvals <- array(1, dim = c(7,7))
+rownames(pvals) <- colnames(pvals) <- layers$short_name
+
+for (f1 in layers$short_name) {
+  for (f2 in layers$short_name) {
+    vals <- result[f1,f2,]
+    obs <- sbms[f1,f2]
+    one_pval <- sum(vals>obs)/1000
+    pvals[f1,f2] <- one_pval
+  }
+}
+
+#turn tensore into long format (to visualize)
+shuff_nmis_long <- NULL
+for (i in 1:1000) {
+  mat <- result[,,1]
+  mat[!lower.tri(mat)] <- 0
+  
+  long <- reshape2::melt(mat) %>% filter(value > 0) %>% 
+    select(farm1=Var1, farm2=Var2, nmi_val=value) %>% add_column(iter=i)
+  shuff_nmis_long <- rbind(shuff_nmis_long, long)
+}
+
+# plot the histograms
+# prepare observed data be long format for vline
+mat_obs <- as.matrix(sbms)
+mat_obs[!lower.tri(mat_obs)] <- 0
+long_obs <- reshape2::melt(mat_obs) %>% filter(value > 0) %>% 
+  select(farm1=Var1, farm2=Var2, nmi_val=value) %>% add_column(iter=0)
+# plot
+ggplot(data = shuff_nmis_long, aes(x=nmi_val)) +
+  geom_histogram(color = "steelblue") +
+  labs(y = "Count", x = "NMI value") +
+  geom_vline(data = long_obs, mapping = aes(xintercept = nmi_val), 
+             colour="#BB0000", linetype="dashed") +
+  facet_grid(farm1 ~ farm2)
+
+
 ## modularity - phylogenetic composition --------
-# get membership data, merge with edgelist - only infomap
-infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
-  select(farm=short_name, asv_id=node_name, membership=module)
-
-nets <- intras %>% 
-  left_join(infomap_table, by = c('layer'='farm', 'node_from'='asv_id')) %>%
-  select(layer, node_from, node_to, weight, from_module = membership) %>%
-  left_join(infomap_table, by = c('layer'='farm', 'node_to'='asv_id')) %>%
-  select(layer, node_from, node_to, weight, from_module, to_module = membership) %>% 
-  mutate(same_module=from_module==to_module)
-
+# prepare phylogenetic data to calculate distances
 # filter only taxa that exist in the networks
 asvs <- sort(unique(c(intras$node_from, intras$node_to)))
 
@@ -514,6 +596,18 @@ pruned <- dendextend::prune(tree, unincluded)
 # calculate asv distances
 distances <- cophenetic.phylo(pruned)
 
+
+# get membership data, merge with edgelist - only infomap
+infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
+  select(farm=short_name, asv_id=node_name, membership=module)
+
+nets <- intras %>% 
+  left_join(infomap_table, by = c('layer'='farm', 'node_from'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module = membership) %>%
+  left_join(infomap_table, by = c('layer'='farm', 'node_to'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module, to_module = membership) %>% 
+  mutate(same_module=from_module==to_module)
+
 # get edges distance:
 nets$phylo_dist <- apply(intras, 1, function(x) distances[x[2], x[3]])
 
@@ -522,20 +616,54 @@ write_csv(nets, "local_output/modules_phylogenetic_composition.csv")
 # read results for plotting
 nets <- read_csv("local_output/modules_phylogenetic_composition.csv")
 
-
 # plot distance distribution between in module and out module links 
 nets %>%
   ggplot( aes(x=phylo_dist, fill=same_module)) +
   geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) +
-  labs(fill="") + ggtitle("Edges between and within modules")
+  labs(fill="") + ggtitle("Edges between and within modules - Infomap")
 
 # plot distance distribution between modules
 nets %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
   transform(from_module=as.character(from_module)) %>%
   ggplot(aes(x=phylo_dist, fill=from_module)) +
-  geom_histogram(color="#e9ecef", alpha=0.6, position = 'identity') +
-  labs(fill="Modul number") + ggtitle("Edges within each module")
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
+  labs(fill="Modul number") + ggtitle("Edges within each module - Infomap")
+
+
+# Do the same but with SBM
+# read SBM mln results:
+membs <- read_csv("local_output/mln_SBM_membership_results.csv") %>% # SBM with labels
+          separate(asv_id, c('farm','asv', 'id')) %>% 
+          unite(asv_id, c(asv, id), sep = "_", remove = TRUE)
+nets_sbm <- intras %>% 
+  left_join(membs, by = c('layer'='farm', 'node_from'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module = membership) %>%
+  left_join(membs, by = c('layer'='farm', 'node_to'='asv_id')) %>%
+  select(layer, node_from, node_to, weight, from_module, to_module = membership) %>% 
+  mutate(same_module=from_module==to_module)
+
+# get edges distance:
+nets_sbm$phylo_dist <- apply(intras, 1, function(x) distances[x[2], x[3]])
+
+# save point
+write_csv(nets_sbm, "local_output/modules_phylogenetic_composition_SBM.csv")
+nets_sbm <- read_csv("local_output/modules_phylogenetic_composition_SBM.csv")
+
+# plotting
+# plot distance distribution between in module and out module links 
+nets_sbm %>%
+  ggplot( aes(x=phylo_dist, fill=same_module)) +
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  labs(fill="") + ggtitle("Edges between and within modules - SBM")
+
+# plot distance distribution between modules
+nets_sbm %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
+  transform(from_module=as.character(from_module)) %>%
+  ggplot(aes(x=phylo_dist, fill=from_module)) +
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
+  labs(fill="Modul number") + ggtitle("Edges within each module - SBM")
 
 
 ## NMI of clusters and hypothesis ---------
@@ -577,54 +705,4 @@ NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H2, -farm)) # 0.2618777
 NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H3, -farm)) # 0 - because its one big group
-
-# --- not sure will be done --------------------------
-
-## Transitivity ---------
-
-### single probabilities ----
-# calculate single probability of each ASV for every layer
-probabilities <- NULL
-for (layer in layers$short_name) {
-  # filter out the layer
-  curr_layer <- ASV_data_80 %>% filter(Farm == layer)
-  cows <- as.numeric(curr_layer %>% summarise(cows=n_distinct(Cow_Code)))
-  
-  print(cows)
-
-  for (asv in all_nodes$node_name) {
-    cows_with_asv <- as.numeric(curr_layer %>% filter(ASV_ID == asv)  %>% 
-                          summarise(cows=n_distinct(Cow_Code)))
-  
-    probabilities <- rbind(tibble(ASV=asv, Farm=layer, rand_prob=cows_with_asv/cows),
-                         probabilities)
-  }
-}
-
-# save probabilities
-write_csv(probabilities, single_prob_file)
-
-### combo probabilities ----
-# The combo properties is run on the HPC, here the results are processed
-HPC_output_folder <- 'HPC/Transitivity 80/'
-
-# for every layer, get the the phylogenetic groups in it, for every level
-for (layer in layers$short_name) {
-  # filter out the layer
-  layer_asv <- ASV_data_80 %>% filter(Farm == layer)
-  layer_net <- intras %>% filter(layer == layer)
-  
-  # run over results - 
-  # TODO some analysis should be done here, this hist is not good enough - talk to shai
-  rrr <- read_csv(paste(HPC_output_folder, layer, '_', combo_prob_file, sep = ""), 
-                  col_names = c("ASV_1", "ASV_2", "ASV_3", "common_cows", "random", "emp_prob"))
-  ns <- nrow(rrr)
-  p1 <- hist(rrr$emp_prob)                    
-  p2 <- hist(rrr$random)                     
-  plot( p2, col=rgb(1,0,0,1/4), xlim=c(0,1), ylim = c(0,ns))
-  plot( p1, col=rgb(0,0,1,1/4), xlim=c(0,1), add=T) 
-  
-}
-
-
 

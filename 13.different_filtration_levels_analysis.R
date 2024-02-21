@@ -83,6 +83,8 @@ ASV_occurrence_farm <-
 ## Using Jaccard ----
 beta_diver_farms <- as.matrix(1-vegdist(ASV_occurrence_farm, "jaccard"))
 diag(beta_diver_farms) <- 1
+write.csv(beta_diver_farms, "local_output/jaccard_beta_diversity_30", row.names = TRUE)
+
 # Heatmap
 beta_diver_farms[lower.tri(beta_diver_farms, diag = F)] <- NA
 beta_diver_farms_m <- reshape2::melt(beta_diver_farms) 
