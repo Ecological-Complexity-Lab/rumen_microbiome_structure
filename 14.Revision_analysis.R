@@ -34,11 +34,11 @@ produce_network_traits <- function(net, grph) {
   n_e <- nrow(net)
   
   # 3. connectivity
-  den <- n_e/n_c
+  conn <- n_e/n_c
   
   # 4. density
   potential_edges <- n_c*(n_c-1)/2
-  conn <- n_e / potential_edges
+  den <- n_e / potential_edges
   
   # 5. Diameter (longest path)
   diam <- diameter(grph, directed = FALSE)
@@ -173,6 +173,57 @@ all_ %>% ggplot(aes(x=p_val, fill = as.factor(layer)))+
 
 
 # ------ Farm level: --------------------------------
+# calculate density for observed farms: ----
+obs_den <- NULL
+for (f in layers$short_name) {
+  print(f)
+  fa <- intras %>% filter(layer == f)
+  
+  # density of one farm:
+  n_c <- length(unique(c(fa$node_from, fa$node_to))) # Node number
+  n_e <- nrow(fa) # edge number
+  
+  # density
+  potential_edges <- n_c*(n_c-1)/2
+  den <- n_e / potential_edges
+  
+  new_line <- tibble(farm=f, run="000", density=den)
+  obs_den <- rbind(obs_den, new_line)
+}
+
+# calculate density for each shuffled farm
+# read shuffled networks
+parent.folder <- "HPC/shuffled/shuffle_farm_r0_30_500_jac_intra"
+files <- list.files(path = parent.folder , pattern = '_edge_list.csv', recursive = T,full.names = T)
+
+shuff_net_density <- NULL
+for (f in files) {
+  print(f)
+  shuf_net <- fread(f) %>% filter(edge_type=="pos")
+  s_id <- str_split_fixed(f, pattern = '/', n = 5)[4]
+  l <- str_split_fixed(basename(f), pattern = '_', n = 5)[4]
+
+  # density of one farm:
+  n_c <- length(unique(c(shuf_net$from, shuf_net$to))) # Node number
+  n_e <- nrow(shuf_net) # edge number
+  
+  # density
+  potential_edges <- n_c*(n_c-1)/2
+  den <- n_e / potential_edges
+  
+  new_line <- tibble(farm=l, run=s_id, density=den)
+  shuff_net_density <- rbind(shuff_net_density, new_line)
+}
+
+# plot density
+ggplot(data = shuff_net_density, aes(x=density)) +
+  geom_histogram(fill = "steelblue") +
+  labs(y = "Count", x = "Network Density") +
+  geom_vline(data = obs_den, mapping = aes(xintercept = density), 
+             colour="#BB0000", linetype="dashed") +
+  facet_grid(farm ~ .)
+
+
 ## SBM on layer -----
 ### find group number per layer in empiric network ----
 gps <- NULL
@@ -539,8 +590,7 @@ for (i in 1:1000) {
   print(i)
 }
 
-# compare shuffled to observed
-hist(result[2,1,])
+# compare shuffled to observed:
 
 #check p-value per farm pair
 pvals <- array(1, dim = c(7,7))
@@ -558,13 +608,19 @@ for (f1 in layers$short_name) {
 #turn tensore into long format (to visualize)
 shuff_nmis_long <- NULL
 for (i in 1:1000) {
-  mat <- result[,,1]
+  mat <- result[,,i]
   mat[!lower.tri(mat)] <- 0
   
   long <- reshape2::melt(mat) %>% filter(value > 0) %>% 
     select(farm1=Var1, farm2=Var2, nmi_val=value) %>% add_column(iter=i)
   shuff_nmis_long <- rbind(shuff_nmis_long, long)
 }
+
+write_csv(shuff_nmis_long, "local_output/NMI_SBM_shuffled_membership_30.csv")
+
+# plot the NMI comparosones
+#shuff_nmis_long <- read_csv("local_output/NMI_SBM_shuffled_membership_30.csv")
+sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
 
 # plot the histograms
 # prepare observed data be long format for vline
@@ -574,7 +630,7 @@ long_obs <- reshape2::melt(mat_obs) %>% filter(value > 0) %>%
   select(farm1=Var1, farm2=Var2, nmi_val=value) %>% add_column(iter=0)
 # plot
 ggplot(data = shuff_nmis_long, aes(x=nmi_val)) +
-  geom_histogram(color = "steelblue") +
+  geom_histogram(fill = "steelblue") +
   labs(y = "Count", x = "NMI value") +
   geom_vline(data = long_obs, mapping = aes(xintercept = nmi_val), 
              colour="#BB0000", linetype="dashed") +
@@ -665,6 +721,12 @@ nets_sbm %>% filter(same_module == TRUE) %>% select(from_module, phylo_dist) %>%
   geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
   labs(fill="Modul number") + ggtitle("Edges within each module - SBM")
 
+# plot distance distribution between farms 
+nets_sbm %>%
+  ggplot( aes(x=phylo_dist, fill=layer)) +
+  geom_histogram(color="#e9ecef", alpha=0.6, position = 'stack') +
+  #scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  labs(fill="") + ggtitle("Edge distance in each farm")
 
 ## NMI of clusters and hypothesis ---------
 infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
@@ -705,4 +767,33 @@ NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H2, -farm)) # 0.2618777
 NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H3, -farm)) # 0 - because its one big group
+
+# check asvs per farm per module
+membs <- read_csv("local_output/mln_SBM_membership_results.csv") %>% # SBM with labels
+  separate(asv_id, c('farm','asv', 'id')) %>% 
+  unite(asv_id, c(asv, id), sep = "_", remove = TRUE)
+
+data <- membs %>% 
+  mutate(farm=factor(farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+  group_by(farm) %>%
+  mutate(nodes_in_layers=n_distinct(asv_id)) %>%
+  group_by(farm, membership) %>%
+  mutate(nodes_in_modules=n_distinct(asv_id)) %>%
+  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+  distinct(farm, membership, nodes_percent) %>% 
+  arrange(membership, farm)
+# plot
+data %>% filter(nodes_percent >0.03) %>%
+  ggplot(aes(x = membership, y = farm, fill=nodes_percent))+
+  geom_tile(color='white')+
+  scale_x_continuous(breaks = seq(1, max(membs$membership), 1))+
+  scale_fill_viridis_c(limits = c(0, 1))+
+  theme_bw()+
+  labs(x='Module ID', y='', title = "with threshold")+
+  theme(panel.grid=element_blank(),
+        axis.text = element_text(size=10, color='black'),
+        axis.title = element_text(size=10, color='black'),
+        title = element_text(size=10, color='black'),
+        plot.tag = element_text(face = "bold")) +
+  paper_figs_theme_no_legend
 
