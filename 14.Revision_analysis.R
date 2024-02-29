@@ -619,7 +619,10 @@ for (i in 1:1000) {
 write_csv(shuff_nmis_long, "local_output/NMI_SBM_shuffled_membership_30.csv")
 
 # plot the NMI comparosones
-#shuff_nmis_long <- read_csv("local_output/NMI_SBM_shuffled_membership_30.csv")
+f_ls <- c("UK1", "UK2", "IT1", "IT2", "IT3", "FI1", "SE1")
+shuff_nmis_long <- as.data.frame(read_csv("local_output/NMI_SBM_shuffled_membership_30.csv"))
+shuff_nmis_long$farm1 <- factor(shuff_nmis_long$farm1, levels = f_ls)
+shuff_nmis_long$farm2 <- factor(shuff_nmis_long$farm2, levels = f_ls)
 sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
 
 # plot the histograms
