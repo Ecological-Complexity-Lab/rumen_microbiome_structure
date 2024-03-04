@@ -258,10 +258,15 @@ write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
 groups <- read_csv("local_output/layer_SBM_results.csv")
 mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
 
+pdf("local_output/figures/SBM_group_distribution.pdf", 6, 4)
 mems_table %>% group_by(farm, membership) %>% summarise(n=n()) %>%
   ggplot(aes(x=membership, y=n)) + 
   geom_bar(stat="identity") + paper_figs_theme + 
-  facet_wrap(~ farm, ncol=3) + labs(x="Group ID", y="Number of ASVs")
+  facet_wrap(. ~ farm, ncol=3) + labs(x="Group ID", y="Number of ASVs") +
+  geom_text(groups %>% rename(farm=short_name),
+            mapping = aes(x=0, y=75, label=paste("k=", emp_max_ICL, sep = "")),
+            hjust = 0)
+dev.off()
 
 ### get SBM for multilayer - not on individual layers -----
 # how: node label will be made up from farm_asv (so its a state node)
@@ -544,9 +549,10 @@ write.csv(as.data.frame(infomaps), "local_output/NMI_Infomap_layers_30", row.nam
 
 # read results to present
 sbms <- read.csv("local_output/NMI_SBM_layers_30", row.names = 1)
-infomaps <- read.csv("local_output/NMI_Infomap_layers_30", row.names = 1)
+pheatmap(sbms, treeheight_row=0 , treeheight_col=0, 
+         filename="local_output/figures/farm_sbm_nmi_paper.pdf", width = 3.3,height = 2.8)
 
-pheatmap(sbms)
+infomaps <- read.csv("local_output/NMI_Infomap_layers_30", row.names = 1)
 pheatmap(infomaps) # maybe do this without removing small modules?
 
 
