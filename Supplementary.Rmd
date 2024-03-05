@@ -135,14 +135,14 @@ multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
 link_weight_distributions <- 
 ggplot(multilayer_unif, aes(weight, fill=type))+
   geom_density(alpha=0.5)+
-  labs(x='Edge weight', y='Density')+
+  labs(x='Edge weight', y='Density', fill='Edge type')+
   scale_fill_manual(values = c('blue','orange'))+
- html_figs_theme
+ html_figs_theme + theme(legend.position = c(0.87, 0.82))
 
 link_weight_distributions
 
 # Make a file
-pdf(paste(output_folder, 'SI_link_weight_distributions.pdf', sep = ""), 10, 6)
+pdf(paste(output_folder, 'SI_link_weight_distributions.pdf', sep = ""), 4, 3)
 link_weight_distributions
 dev.off()
 ```

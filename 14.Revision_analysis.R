@@ -258,7 +258,7 @@ write_csv(mems_table, "local_output/layer_SBM_membership_results.csv")
 groups <- read_csv("local_output/layer_SBM_results.csv")
 mems_table <- read_csv("local_output/layer_SBM_membership_results.csv")
 
-pdf("local_output/figures/SBM_group_distribution.pdf", 6, 4)
+pdf("local_output/figures/SI_SBM_group_size.pdf", 6, 4)
 mems_table %>% group_by(farm, membership) %>% summarise(n=n()) %>%
   ggplot(aes(x=membership, y=n)) + 
   geom_bar(stat="identity") + paper_figs_theme + 
@@ -441,18 +441,21 @@ res.pca_all <- prcomp(pca_input, scale = TRUE)
 res.ind_all <- get_pca_ind(res.pca_all)
 
 to_plot_all <- as.data.frame(res.ind_all$coord) %>% 
-  select(Dim.1, Dim.2) %>% add_column(type="shuff") 
-to_plot_all[,"farm"] <- str_split_fixed(rownames(to_plot_all), pattern="_", n=2)[,2]
-to_plot_all[1:7,"farm"] <- rownames(to_plot_all)[1:7]
-to_plot_all[1:7, "type"] <- "obs"
+  select(Dim.1, Dim.2) %>% add_column(Type="shuff") 
+to_plot_all[,"Farm"] <- str_split_fixed(rownames(to_plot_all), pattern="_", n=2)[,2]
+to_plot_all[1:7,"Farm"] <- rownames(to_plot_all)[1:7]
+to_plot_all[1:7, "Type"] <- "obs"
 
 # plot it: - results from one PCA run for 507 individuals are plotted together
-ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=farm)) + 
-  geom_point(aes(shape=type, size=type)) +
+farm_pca <- ggplot(to_plot_all, aes(x=Dim.1, y=Dim.2, color=Farm)) + 
+  geom_point(aes(shape=Type, size=Type)) +
   scale_shape_manual(values=c(16, 3)) +
   scale_size_manual(values=c(3, 1)) +
-  paper_figs_theme + ggtitle("PCA result for all farms")
+  paper_figs_theme #+ ggtitle("PCA result for all farms")
 
+pdf("local_output/figures/SI_farm_pca.pdf",5,4)
+farm_pca
+dev.off()
 
 # ------ Inter-farm level: --------------------------
 ## taxonomic beta-diversity ------ 
