@@ -475,7 +475,9 @@ o <- get_taxa_pf(intras, all_taxa, "Order") %>% add_column(taxa="Order")
 f <- get_taxa_pf(intras, all_taxa, "Family") %>% add_column(taxa="Family")
 g <- get_taxa_pf(intras, all_taxa, "Genus") %>% add_column(taxa="Genus")
 
-PF_T_obs <- rbind(c, o, f, g) %>% add_column(run=0)
+PF_T_obs <- rbind(c, o, f, g) %>% add_column(run=0) %>% 
+                mutate(taxa = fct_relevel(taxa, 
+                      "Class", "Order", "Family", "Genus"))
 
 ggplot(PF_T_obs, aes(PF_T, fill=taxa)) +
   geom_histogram(alpha=0.5, color='white', position="identity")+
@@ -484,6 +486,20 @@ ggplot(PF_T_obs, aes(PF_T, fill=taxa)) +
   theme(panel.grid=element_blank(),
         axis.text = element_text(size=10, color='black'),
         axis.title = element_text(size=10, color='black'))
+
+p <- ggplot(PF_T_obs, aes(PF_T, fill=taxa)) +
+  geom_histogram(alpha=0.5, color='white', position="identity")+
+  labs(x='Bray-Curtis score', y='Count')+
+  paper_figs_theme +
+  theme(panel.grid=element_blank(),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=10), 
+        legend.position = "none")+
+  facet_grid(taxa ~ .)
+
+pdf("local_output/figures/SI_taxa_pf.pdf",4,5)
+p
+dev.off()
 
 # read shuffled taxa PF results: 
 # Folder from HPC containing the 001-500 sub-folders
@@ -641,13 +657,21 @@ mat_obs[!lower.tri(mat_obs)] <- 0
 long_obs <- reshape2::melt(mat_obs) %>% filter(value > 0) %>% 
   select(farm1=Var1, farm2=Var2, nmi_val=value) %>% add_column(iter=0)
 # plot
-ggplot(data = shuff_nmis_long, aes(x=nmi_val)) +
+p <- ggplot(data = shuff_nmis_long, aes(x=nmi_val)) +
   geom_histogram(fill = "steelblue") +
   labs(y = "Count", x = "NMI value") +
   geom_vline(data = long_obs, mapping = aes(xintercept = nmi_val), 
              colour="#BB0000", linetype="dashed") +
   facet_grid(farm1 ~ farm2)
 
+pdf("local_output/figures/SI_farm_nmi_vs_shuff.pdf", 5, 4)
+p
+dev.off()
+
+# extract NMI range:
+by_val <- long_obs %>% arrange(nmi_val)
+lowest <- by_val[1,]   # FI1, IT3: 0.2165693
+highest <- by_val[21,] # IT2, UK1: 0.5793949
 
 ## modularity - phylogenetic composition --------
 # prepare phylogenetic data to calculate distances
