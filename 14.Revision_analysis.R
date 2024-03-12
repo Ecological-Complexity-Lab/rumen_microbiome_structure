@@ -298,8 +298,42 @@ max_group # - 42
 saveRDS(sbm_model, "local_output/mln_sbm_estimate.rds")
 write_csv(mems_tbl, "local_output/mln_SBM_membership_results.csv")
 
+### get SBM for multilayer - with unifrac intelayer edges -----
+multilayer_unif <- read_csv('local_output/multilayer_unif.csv')
+mln <- multilayer_unif %>% # get layers names
+  left_join(layers, by = c('layer_from'='layer_id')) %>%
+  select(node_from, node_to, weight, from_farm = short_name, layer_to, type) %>%
+  left_join(layers, by = c('layer_to'='layer_id')) %>%
+  select(node_from, node_to, weight, from_farm, to_farm=short_name, type) %>%
+  # prepare format for sbm
+  mutate(from=paste(from_farm, node_from, sep = "_"), 
+         to=paste(to_farm, node_to, sep = "_"))         %>% 
+  select(from, to, weight) 
 
-# --- shuffled data from the HPC
+g <- graph.data.frame(mln)
+adj <- get.adjacency(g, sparse=FALSE, attr='weight')
+
+# run SBM on mln with interlayer edges
+sbm_model <- BM_bernoulli$new("SBM", adj)
+sbm_model$estimate() # really long step (days)
+max_group <- which.max(sbm_model$ICL)
+mem <- sbm_model$memberships[[max_group]]$Z
+
+nds <- row.names(adj)
+row.names(mem) <- nds
+
+# membership documenting - find grouping
+grp_mem <- apply(mem, 1, function(x) match(max(x), x)) # this will take the first group with the max value as the node's group.
+mems_tbl <- tibble(asv_id=nds, membership=grp_mem)
+
+# number of groups in the mln: 
+max_group # - 44
+
+saveRDS(sbm_model, "local_output/mln_interlayer_sbm_estimate.rds")
+write_csv(mems_tbl, "local_output/mln_interlayer_SBM_membership_results.csv")
+
+
+# --- shuffled data from the HPC ? ----
 
 # process results from HPC
 res_file <- read_csv(gps, "HPC/shuffled/sbm_analysis/shuff_layer_SBM_results.csv")
@@ -766,6 +800,7 @@ nets_sbm %>%
   labs(fill="") + ggtitle("Edge distance in each farm")
 
 ## NMI of clusters and hypothesis ---------
+### infomap -----
 infomap_table <- read_csv("local_output/farm_modules_pos_30_U.csv") %>%
   select(farm=short_name, asv_id=node_name, membership=module)
 
@@ -785,13 +820,13 @@ NMI(Hs %>% select(label, membership, -farm),
 NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H3, -farm)) # 0 - because its one big group
 
-# using sbm results:
+### SBM (no interlayer edges) -----
 # use multilayer SBM method for this
-membs <- read_csv("local_output/mln_SBM_membership_results.csv") # SBM with labels
+membss <- read_csv("local_output/mln_SBM_membership_results.csv") # SBM with labels
 
 # built hypothesis table:
 # H1 + H2 + H3:
-Hs <- membs %>% rename(label=asv_id) %>%
+Hs <- membss %>% rename(label=asv_id) %>%
   separate(label, c('farm'), remove = FALSE, extra = 'drop') %>% 
   mutate(H1=farm) %>% 
   mutate(H2=case_when(farm %in% c("FI1", "SE1") ~ "north",
@@ -806,11 +841,9 @@ NMI(Hs %>% select(label, membership, -farm),
     Hs %>% select(label, H3, -farm)) # 0 - because its one big group
 
 # check asvs per farm per module
-membs <- read_csv("local_output/mln_SBM_membership_results.csv") %>% # SBM with labels
+data <- membss %>% 
   separate(asv_id, c('farm','asv', 'id')) %>% 
-  unite(asv_id, c(asv, id), sep = "_", remove = TRUE)
-
-data <- membs %>% 
+  unite(asv_id, c(asv, id), sep = "_", remove = TRUE) %>%
   mutate(farm=factor(farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
   group_by(farm) %>%
   mutate(nodes_in_layers=n_distinct(asv_id)) %>%
@@ -833,6 +866,53 @@ data %>% filter(nodes_percent >0.03) %>%
         title = element_text(size=10, color='black'),
         plot.tag = element_text(face = "bold")) +
   paper_figs_theme_no_legend
+
+
+### SBM (WITH interlayer edges) -----
+memstbl <- read_csv("local_output/mln_interlayer_SBM_membership_results.csv")
+
+# built hypothesis table:
+# H1 + H2 + H3:
+Hs <- memstbl %>% rename(label=asv_id) %>%
+  separate(label, c('farm'), remove = FALSE, extra = 'drop') %>% 
+  mutate(H1=farm) %>% 
+  mutate(H2=case_when(farm %in% c("FI1", "SE1") ~ "north",
+                      !farm %in% c("FI1", "SE1") ~ "south")) %>%
+  add_column(H3=1)
+
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H1, -farm)) # 0.6549356 - higher value
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H2, -farm)) # 0.2584942
+NMI(Hs %>% select(label, membership, -farm),
+    Hs %>% select(label, H3, -farm)) # 0 - because its one big group
+
+# check asvs per farm per module
+data2 <- memstbl %>% 
+  separate(asv_id, c('farm', 'id')) %>% 
+  mutate(farm=factor(farm, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+  group_by(farm) %>%
+  mutate(nodes_in_layers=n_distinct(id)) %>%
+  group_by(farm, membership) %>%
+  mutate(nodes_in_modules=n_distinct(id)) %>%
+  mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+  distinct(farm, membership, nodes_percent) %>% 
+  arrange(membership, farm)
+# plot
+data2 %>% filter(nodes_percent >0.03) %>%
+  ggplot(aes(x = membership, y = farm, fill=nodes_percent))+
+  geom_tile(color='white')+
+  scale_x_continuous(breaks = seq(1, max(membs$membership), 1))+
+  scale_fill_viridis_c(limits = c(0, 1))+
+  theme_bw()+
+  labs(x='Module ID', y='', title = "With interlayer and with threshold")+
+  theme(panel.grid=element_blank(),
+        axis.text = element_text(size=10, color='black'),
+        axis.title = element_text(size=10, color='black'),
+        title = element_text(size=10, color='black'),
+        plot.tag = element_text(face = "bold")) +
+  paper_figs_theme_no_legend
+
 
 
 ## Infomap of MLN with interlayer edges TO COMMON partners -----
