@@ -16,6 +16,7 @@ library(pheatmap)
 library(ape)
 library(dendextend)
 library(factoextra)
+library(infomapecology)
 
 source('functions.R')
 
@@ -833,3 +834,112 @@ data %>% filter(nodes_percent >0.03) %>%
         plot.tag = element_text(face = "bold")) +
   paper_figs_theme_no_legend
 
+
+## Infomap of MLN with interlayer edges TO COMMON partners -----
+# this *should* negate the effect that multiple intra-edges have in 
+# overwhelming the infomap towards inside the farm.
+
+# function generating interlayer edges for a pair:
+get_inter_for_farm_pair <- function(intra, f1, f2) {
+  # get farms
+  Farm1 <- intra %>% filter(layer == f1)
+  Farm2 <- intra %>% filter(layer == f2)
+  
+  # filter only ASVs that appear in both farms
+  f1_asvs <- unique(c(Farm1$node_from, Farm1$node_to))
+  f2_asvs <- unique(c(Farm2$node_from, Farm2$node_to))
+  intrsc <- intersect(f1_asvs, f2_asvs)
+  
+  # filter edges with nodes that appear in both farms 
+  relevant1 <- Farm1 %>% filter((node_from %in% intrsc) & (node_to %in% intrsc))
+  relevant2 <- Farm2 %>% filter((node_from %in% intrsc) & (node_to %in% intrsc))
+  
+  # add flipped edges to allow accessing the nodes using only "from"
+  dbl_1 <- rbind(relevant1 %>% select(node_from, node_to),
+                 relevant1 %>% select(node_from=node_to, node_to=node_from)) 
+  dbl_2 <- rbind(relevant2 %>% select(node_from, node_to),
+                 relevant2 %>% select(node_from=node_to, node_to=node_from))
+  
+  output <- NULL
+  #go over only the filtered node that appear in one of the farms:
+  for (node in intrsc) {
+    # filter only edges of the current node
+    node_edgesin_1 <- dbl_1 %>% filter(node_from==node)
+    node_edgesin_2 <- dbl_2 %>% filter(node_from==node)
+    
+    # get only edges that appear in both farms
+    common_edges_from_1 <- node_edgesin_1 %>% 
+      filter(node_to %in% node_edgesin_2$node_to)
+    # note: no need to do the other direction as well as it will be the same.
+    
+    # produce the interlayer edges:
+    node_inter <- tibble(layer_from=f1, node_from=node, 
+                         layer_to=f2,   node_to=common_edges_from_1$node_to)
+    
+    output <- rbind(output, node_inter)
+  }
+  
+  return(output)
+}
+
+inter_all <- NULL
+for (f1 in layers$short_name) {
+  farm_ind <- 1
+  f2 = layers$short_name[farm_ind]
+  while (f2 != f1) { # to make sure we go through a pair of 
+    print(paste("f1:", f1, ", f2:", f2))
+    # get the set of new interlayer edges:
+    inter_pair <- get_inter_for_farm_pair(intras, f1, f2)
+    inter_all <- rbind(inter_all, inter_pair)
+    
+    # for next iteration
+    farm_ind <- farm_ind + 1
+    f2 = layers$short_name[farm_ind]
+  }
+}
+
+# run infomap on this new mln
+intra_big <- intras %>% select(layer_from=layer, node_from,
+                               layer_to=layer, node_to)
+
+mln <- rbind(intra_big, inter_all)
+write_csv(mln, "local_output/mln_multi_interlayer_edges_30.csv")
+
+
+# prepare data for infomap run
+mln_mile <- read_csv("local_output/mln_multi_interlayer_edges_30.csv") %>%
+              add_column(weight=1)
+all_nodes <- sort(unique(c(mln_mile$node_from, mln_mile$node_to)))
+all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
+layers <- tibble(layer_id=1:7, 
+                 short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
+
+nrow(mln_mile %>% filter(layer_from==layer_to)) # intra: 269,285
+nrow(mln_mile %>% filter(layer_from!=layer_to)) # inter: 287,900
+nrow(mln_mile) # all: 557,185
+
+# make network be represented by indexes
+mln_inds <- 
+  mln_mile %>%
+  left_join(layers, by = c('layer_from' = 'short_name')) %>% 
+  left_join(layers, by = c('layer_to' = 'short_name')) %>% 
+  left_join(all_nodes, by = c('node_from' = 'node_name')) %>% 
+  left_join(all_nodes, by = c('node_to' = 'node_name')) %>% 
+  select(layer_from=layer_id.x, node_from=node_id.x, layer_to=layer_id.y, node_to=node_id.y, weight)
+
+# Run Infomap
+multilayer_for_infomap <- create_multilayer_object(extended = mln_inds, 
+                                                   nodes = all_nodes, 
+                                                   layers = layers)
+m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
+                                            flow_model = 'undirected',  
+                                            trials = 200, relax = F, seed=111)
+
+# Run Infomap - Multi-level
+ml <- run_infomap_multilayer_multilevel(multilayer_for_infomap, 
+                                        two_level = F, 
+                                        flow_model = 'undirected', silent = F, 
+                                        trials = 200, relax = F, seed=123)
+modules <- ml$modules %>% left_join(layers)
+# See that the file name matches the network before writing
+write_csv(modules, 'local_output/figures/multi_edge_intra_30_modules_multilevel.csv')
