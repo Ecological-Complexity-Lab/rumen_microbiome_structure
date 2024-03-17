@@ -108,7 +108,7 @@ NMI_from_membership <- function(table, names) {
 farm_multilayer_pos_30 <- read_csv('local_output/farm_multilayer_pos_30.csv')
 all_nodes <- sort(unique(c(farm_multilayer_pos_30$from, farm_multilayer_pos_30$to)))
 all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
-layers <- tibble(layer_id=1:7, layer_name=c('NUDC', 'Park', 'Bian', 'Fran','Gand','Mink','Raab'),
+layers <- tibble(layer_id=1:7,
                  short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
 intras <- farm_multilayer_pos_30 %>% 
             select(layer=level_name, node_from=from, node_to=to, weight)
@@ -962,58 +962,143 @@ get_inter_for_farm_pair <- function(intra, f1, f2) {
   return(output)
 }
 
-inter_all <- NULL
-for (f1 in layers$short_name) {
-  farm_ind <- 1
-  f2 = layers$short_name[farm_ind]
-  while (f2 != f1) { # to make sure we go through a pair of 
-    print(paste("f1:", f1, ", f2:", f2))
-    # get the set of new interlayer edges:
-    inter_pair <- get_inter_for_farm_pair(intras, f1, f2)
-    inter_all <- rbind(inter_all, inter_pair)
-    
-    # for next iteration
-    farm_ind <- farm_ind + 1
+get_common_partners_mln <- function(intras, layers) {
+  inter_all <- NULL
+  for (f1 in layers$short_name) {
+    farm_ind <- 1
     f2 = layers$short_name[farm_ind]
+    while (f2 != f1) { # to make sure we go through a pair of 
+      print(paste("f1:", f1, ", f2:", f2))
+      # get the set of new interlayer edges:
+      inter_pair <- get_inter_for_farm_pair(intras, f1, f2)
+      inter_all <- rbind(inter_all, inter_pair)
+      
+      # for next iteration
+      farm_ind <- farm_ind + 1
+      f2 = layers$short_name[farm_ind]
+    }
   }
+  
+  # run infomap on this new mln
+  intra_big <- intras %>% select(layer_from=layer, node_from,
+                                 layer_to=layer, node_to)
+  mln <- rbind(intra_big, inter_all) %>% add_column(weight=1)
+  
+  return(mln)
 }
 
-# run infomap on this new mln
-intra_big <- intras %>% select(layer_from=layer, node_from,
-                               layer_to=layer, node_to)
+infomap_from_mln <- function(filepath){
+  # prepare data for infomap run (30%)
+  mln_mile <- read_csv(filepath) 
+  all_nodes <- sort(unique(c(mln_mile$node_from, mln_mile$node_to)))
+  all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
+  layers <- tibble(layer_id=1:7, 
+                   short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
+  
+  nrow(mln_mile %>% filter(layer_from==layer_to)) # intra: 269,285
+  nrow(mln_mile %>% filter(layer_from!=layer_to)) # inter: 287,900
+  nrow(mln_mile) # all: 557,185
+  
+  # make network be represented by indexes
+  mln_inds <- 
+    mln_mile %>%
+    left_join(layers, by = c('layer_from' = 'short_name')) %>% 
+    left_join(layers, by = c('layer_to' = 'short_name')) %>% 
+    left_join(all_nodes, by = c('node_from' = 'node_name')) %>% 
+    left_join(all_nodes, by = c('node_to' = 'node_name')) %>% 
+    select(layer_from=layer_id.x, node_from=node_id.x, layer_to=layer_id.y, node_to=node_id.y, weight)
+  
+  # Run Infomap
+  multilayer_for_infomap <- create_multilayer_object(extended = mln_inds, 
+                                                     nodes = all_nodes, 
+                                                     layers = layers)
+  m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
+                                              flow_model = 'undirected',  
+                                              trials = 200, relax = F, seed=111)
+  return(m)
+}
 
-mln <- rbind(intra_big, inter_all)
+# check asvs per farm per module
+modules_to_plot <- function(modules_df) {
+  data <- modules_df %>% left_join(layers) %>% 
+    mutate(farm=factor(short_name, levels = c("UK1","UK2","IT1","IT2","IT3","FI1",'SE1'))) %>%
+    group_by(farm) %>%
+    mutate(nodes_in_layers=n_distinct(node_name)) %>%
+    group_by(farm, module) %>%
+    mutate(nodes_in_modules=n_distinct(node_name)) %>%
+    mutate(nodes_percent=nodes_in_modules/nodes_in_layers) %>%
+    distinct(farm, module, nodes_percent) %>% 
+    arrange(module, farm)
+  # plot
+  p <- data %>% filter(nodes_percent > 0.03) %>%
+    ggplot(aes(x = module, y = farm, fill=nodes_percent))+
+    geom_tile(color='white')+
+    scale_x_continuous(breaks = seq(1, max(data$module), 1))+
+    scale_fill_viridis_c(limits = c(0, 1))+
+    theme_bw()+
+    labs(x='Module ID', y='')+
+    theme(panel.grid=element_blank(),
+          axis.text = element_text(size=10, color='black'),
+          axis.title = element_text(size=10, color='black'),
+          title = element_text(size=10, color='black'),
+          plot.tag = element_text(face = "bold")) +
+    paper_figs_theme_no_legend
+  
+  return(p)
+}
+
+
+# get the relevant intra layers (30 / 20 / 10 / 5)
+# get multilayer from filtering: 
+# 30%
+intra30 <- read_csv('local_output/farm_multilayer_pos_30.csv') %>% 
+             select(layer=level_name, node_from=from, node_to=to, weight)
+mln <- get_common_partners_mln(intra30, layers)
 write_csv(mln, "local_output/mln_multi_interlayer_edges_30.csv")
 
+# 20%
+intra20 <- read_csv('local_output/farm_multilayer_pos_20.csv') %>% 
+  select(layer=level_name, node_from=from, node_to=to, weight)
+mln <- get_common_partners_mln(intra20, layers)
+write_csv(mln, "local_output/mln_multi_interlayer_edges_20.csv")
 
-# prepare data for infomap run
-mln_mile <- read_csv("local_output/mln_multi_interlayer_edges_30.csv") %>%
-              add_column(weight=1)
-all_nodes <- sort(unique(c(mln_mile$node_from, mln_mile$node_to)))
-all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
-layers <- tibble(layer_id=1:7, 
-                 short_name=c('UK1', 'UK2', 'IT1', 'IT2', 'IT3', 'FI1', 'SE1'))
+# 10%
+intra10 <- read_csv('local_output/farm_multilayer_pos_10.csv') %>% 
+  select(layer=level_name, node_from=from, node_to=to, weight)
+mln <- get_common_partners_mln(intra10, layers)
+write_csv(mln, "local_output/mln_multi_interlayer_edges_10.csv")
 
-nrow(mln_mile %>% filter(layer_from==layer_to)) # intra: 269,285
-nrow(mln_mile %>% filter(layer_from!=layer_to)) # inter: 287,900
-nrow(mln_mile) # all: 557,185
+# 5%
+intra05 <- read_csv('local_output/farm_multilayer_pos_05.csv') %>% 
+  select(layer=level_name, node_from=from, node_to=to, weight)
+mln <- get_common_partners_mln(intra05, layers)
+write_csv(mln, "local_output/mln_multi_interlayer_edges_05.csv")
 
-# make network be represented by indexes
-mln_inds <- 
-  mln_mile %>%
-  left_join(layers, by = c('layer_from' = 'short_name')) %>% 
-  left_join(layers, by = c('layer_to' = 'short_name')) %>% 
-  left_join(all_nodes, by = c('node_from' = 'node_name')) %>% 
-  left_join(all_nodes, by = c('node_to' = 'node_name')) %>% 
-  select(layer_from=layer_id.x, node_from=node_id.x, layer_to=layer_id.y, node_to=node_id.y, weight)
+# run the infomap
+m_30 <- infomap_from_mln("local_output/mln_multi_interlayer_edges_30.csv")
+m_30$m # 1
 
-# Run Infomap
-multilayer_for_infomap <- create_multilayer_object(extended = mln_inds, 
-                                                   nodes = all_nodes, 
-                                                   layers = layers)
-m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
-                                            flow_model = 'undirected',  
-                                            trials = 200, relax = F, seed=111)
+m_20 <- infomap_from_mln("local_output/mln_multi_interlayer_edges_20.csv")
+m_20$m # 2
+
+m_10 <- infomap_from_mln("local_output/mln_multi_interlayer_edges_10.csv")
+m_10$m # 4
+
+m_05 <- infomap_from_mln("local_output/mln_multi_interlayer_edges_05.csv")
+m_05$m # 7
+
+
+write_csv(m_30$modules %>% left_join(layers), 'local_output/multi_inter_edge_30_modules.csv')
+write_csv(m_20$modules %>% left_join(layers), 'local_output/multi_inter_edge_20_modules.csv')
+write_csv(m_10$modules %>% left_join(layers), 'local_output/multi_inter_edge_10_modules.csv')
+write_csv(m_05$modules %>% left_join(layers), 'local_output/multi_inter_edge_05_modules.csv')
+
+# find division - distribution across farms plot
+modules_to_plot(m_30$modules) + labs(title = "30%")
+modules_to_plot(m_20$modules) + labs(title = "20%")
+modules_to_plot(m_10$modules) + labs(title = "10%")
+modules_to_plot(m_05$modules) + labs(title = "5%")
+
 
 # Run Infomap - Multi-level
 ml <- run_infomap_multilayer_multilevel(multilayer_for_infomap, 
@@ -1023,3 +1108,32 @@ ml <- run_infomap_multilayer_multilevel(multilayer_for_infomap,
 modules <- ml$modules %>% left_join(layers)
 # See that the file name matches the network before writing
 write_csv(modules, 'local_output/figures/multi_edge_intra_30_modules_multilevel.csv')
+
+
+# run infomap of multi-interlayer-edges mln for one of the shuffled networks
+# shuff - example
+intra_sh <- read_csv('HPC/shuffled/shuffle_farm_r0_30_500_jac_intra/001/1_multilayer_pf_unif.csv') %>%
+  filter(type=="intra") %>%  
+  left_join(layers, by=c("layer_from"="layer_id")) %>% 
+  select(layer=short_name, node_from, node_to, weight)
+mln_sh <- get_common_partners_mln(intra_sh, layers)
+
+all_nodes <- sort(unique(c(mln_sh$node_from, mln_sh$node_to)))
+all_nodes <- tibble(node_id=1:length(all_nodes), node_name=all_nodes)
+
+mln_sh_inds <- 
+  mln_sh %>%
+  left_join(layers, by = c('layer_from' = 'short_name')) %>% 
+  left_join(layers, by = c('layer_to' = 'short_name')) %>% 
+  select(layer_from=layer_id.x, node_from, layer_to=layer_id.y, node_to, weight)
+
+# Run Infomap
+multilayer_for_infomap <- create_multilayer_object(extended = mln_sh_inds,
+                                                   nodes = all_nodes,
+                                                   layers = layers)
+m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
+                                            flow_model = 'undirected',  
+                                            trials = 200, relax = F, seed=111)
+# it is all one big module.
+
+
