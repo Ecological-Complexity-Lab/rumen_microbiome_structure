@@ -1030,7 +1030,7 @@ modules_to_plot <- function(modules_df) {
     distinct(farm, module, nodes_percent) %>% 
     arrange(module, farm)
   # plot
-  p <- data %>% filter(nodes_percent > 0.03) %>%
+  p <- data %>%
     ggplot(aes(x = module, y = farm, fill=nodes_percent))+
     geom_tile(color='white')+
     scale_x_continuous(breaks = seq(1, max(data$module), 1))+
@@ -1134,6 +1134,44 @@ multilayer_for_infomap <- create_multilayer_object(extended = mln_sh_inds,
 m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
                                             flow_model = 'undirected',  
                                             trials = 200, relax = F, seed=111)
+# ended up being one big module.
+
+### multi-interlayer edge amount ----
+# testing the hypothesis that the modularity is due to the amount of interlayer edges in the system
+# make the figure:
+# the analysis is ran on the HPC. reading results:
+summmary <- read_csv("HPC/multi_edges/sampled_multi_edge_30_n_modules.csv")
+modules <- read_csv("HPC/multi_edges/sampled_multi_edge_30_modules.csv")
+
+# get groups of modules + layers
+mod_lay_groups <- modules %>% group_by(module, layer_id, itr, percentage) %>% summarise(n=n())
+
+# find how many farms each module touches
+farm_count <- mod_lay_groups %>% group_by(module, itr, percentage) %>% summarise(n_farms=n())
+
+# counting iterations
+data_to_plot <- farm_count %>% ungroup() %>% select(-module) %>% distinct() %>%
+  group_by(n_farms, percentage) %>% summarise(n_repeated=n())
+
+# make plot
+pdf("local_output/figures/multi_edge_pecent_on_modularity_30.pdf", 10, 60)
+data_to_plot %>% 
+  ggplot(aes(x = percentage, y = n_farms, fill=n_repeated))+
+  geom_tile(color='white')+
+  scale_y_continuous(breaks = seq(1, max(data_to_plot$n_farms), 1))+
+  theme_bw()+
+  labs(x='Edge percentage used', y='Number of farms in module', fill="n iterations\nit appears in")+
+  theme(panel.grid=element_blank(),
+        axis.text = element_text(size=10, color='black'),
+        axis.title = element_text(size=10, color='black'),
+        title = element_text(size=10, color='black'),
+        plot.tag = element_text(face = "bold"))
+dev.off()
+
+# peak at one of the runs:
+modules_to_plot(modules %>% filter(itr==2, percentage==0.1))
+
+
 # it is all one big module.
 
 
