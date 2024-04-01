@@ -79,4 +79,5 @@ for (p in seq(from = 0, to = 1, by = 0.1)) {
 
 #save results
 write_csv(mods, '../sampled_multi_edge_30_n_modules.csv', append = T)
-write_csv(modules_details, '../sampled_multi_edge_30_modules.csv', append = T)
+output_file_name <- paste(itr_id, 'sampled_multi_edge_30_modules.csv', sep = "_")
+write_csv(modules_details, output_file_name)

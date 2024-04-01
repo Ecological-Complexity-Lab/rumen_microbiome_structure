@@ -1140,27 +1140,41 @@ m <- infomapecology::run_infomap_multilayer(multilayer_for_infomap, silent = F,
 # testing the hypothesis that the modularity is due to the amount of interlayer edges in the system
 # make the figure:
 # the analysis is ran on the HPC. reading results:
-summmary <- read_csv("HPC/multi_edges/sampled_multi_edge_30_n_modules.csv")
-modules <- read_csv("HPC/multi_edges/sampled_multi_edge_30_modules.csv")
+summmary <- read_csv("HPC/multi_edges/sampled_multi_edge_30_n_modules.csv", 
+                     col_names = c("percent","n_modules", "itr"))
+# plot the thing above
+parent.folder <- "HPC/multi_edges/results"
+files <- list.files(path = parent.folder , pattern = 'sampled_multi_edge_30_modules.csv', 
+                    recursive = T,full.names = T)
+
+# read all shuffled networks, and saving as full names
+modules <- NULL
+for (s in files) {
+  print(s)
+  mod_curr <- fread(s)
+  
+  modules <- rbind(modules, mod_curr)
+}
 
 # get groups of modules + layers
-mod_lay_groups <- modules %>% group_by(module, layer_id, itr, percentage) %>% summarise(n=n())
+mod_lay_groups <- modules %>% group_by(module, layer_id, itr, percent) %>% summarise(n=n())
 
 # find how many farms each module touches
-farm_count <- mod_lay_groups %>% group_by(module, itr, percentage) %>% summarise(n_farms=n())
+farm_count <- mod_lay_groups %>% group_by(module, itr, percent) %>% summarise(n_farms=n())
 
 # counting iterations
 data_to_plot <- farm_count %>% ungroup() %>% select(-module) %>% distinct() %>%
-  group_by(n_farms, percentage) %>% summarise(n_repeated=n())
+  group_by(n_farms, percent) %>% summarise(n_repeated=n())
 
 # make plot
-pdf("local_output/figures/multi_edge_pecent_on_modularity_30.pdf", 10, 60)
+pdf("local_output/figures/multi_edge_pecent_on_modularity_30.pdf", 4, 3)
 data_to_plot %>% 
-  ggplot(aes(x = percentage, y = n_farms, fill=n_repeated))+
+  ggplot(aes(x = percent, y = n_farms, fill=100*n_repeated/50))+
   geom_tile(color='white')+
   scale_y_continuous(breaks = seq(1, max(data_to_plot$n_farms), 1))+
+  scale_x_continuous(breaks = seq(0, max(data_to_plot$percent), 0.2))+
   theme_bw()+
-  labs(x='Edge percentage used', y='Number of farms in module', fill="n iterations\nit appears in")+
+  labs(x='Proportion of interlayer links used', y='Number of farms in module', fill="% of\niterations")+
   theme(panel.grid=element_blank(),
         axis.text = element_text(size=10, color='black'),
         axis.title = element_text(size=10, color='black'),
@@ -1172,6 +1186,13 @@ dev.off()
 modules_to_plot(modules %>% filter(itr==2, percentage==0.1))
 
 
-# it is all one big module.
-
-
+# clean the HPC folders
+# if the files are in the original HPC folders move them to the parent, to clean up.
+dirs <- length(str_split(dirname(files[1]), pattern = '/')[[1]])
+if (dirs > 3){
+  for (s in files) {
+    new_location <- paste(parent.folder, basename(s), sep = "/")
+    fs::file_copy(path = s, new_path = new_location)
+    fs::dir_delete(dirname(s))
+  }
+}
