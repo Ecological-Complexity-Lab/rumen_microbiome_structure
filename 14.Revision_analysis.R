@@ -1,6 +1,8 @@
 # ------ 14.Revision_analysis.r ----------------------------------------
 # This script temporarily holds the analysis requested in the revision
 # they will later be moved to more logically relevant places in the repo
+# cleaner version will be here: 
+# https://github.com/Ecological-Complexity-Lab/rumen_microbiome_structure
 #-----------------------------------------------------------------------
 
 #------ includes ----------
